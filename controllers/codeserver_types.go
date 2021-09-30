@@ -24,7 +24,7 @@ import (
 
 type CodeServerOption struct {
 	DomainName      string
-	ExporterImage   string
+	VSExporterImage string
 	ProbeInterval   int
 	MaxProbeRetry   int
 	HttpsSecretName string

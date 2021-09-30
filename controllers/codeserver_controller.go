@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	errrorlib "errors"
 	"fmt"
 	"github.com/go-logr/logr"
 	"github.com/opensourceways/code-server-operator/controllers/initplugins"
@@ -43,6 +44,7 @@ import (
 
 const (
 	CSNAME           = "code-server"
+	GOTTYNAME        = "gotty-server"
 	MaxActiveSeconds = 60 * 60 * 24
 	MaxKeepSeconds   = 60 * 60 * 24 * 30
 	CertFile         = "tls.crt"
@@ -145,7 +147,7 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			readyCondition.Reason = "waiting deployment to be available"
 		} else {
 			//add it to watch list
-			endPoint := fmt.Sprintf("http://%s:%s/mtime", service.Spec.ClusterIP, "8000")
+			endPoint := strings.Replace(codeServer.Spec.AliveProbe, "0.0.0.0", service.Spec.ClusterIP, 0)
 			if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
 				// we keep the instance within MaxActiveSeconds maximumly
 				r.addToInactiveWatch(req.NamespacedName, MaxActiveSeconds, endPoint)
@@ -325,9 +327,13 @@ func (r *CodeServerReconciler) reconcileForDeployment(codeServer *csv1alpha1.Cod
 	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
 	reqLogger.Info("Reconciling Deployment.")
 	//reconcile pvc for code server
-	newDev := r.deploymentForCodeServer(codeServer, secret)
+	newDev, err := r.getDeployment(codeServer, secret)
+	if err != nil {
+		reqLogger.Error(err, "Failed to generate Deployment.")
+		return nil, err
+	}
 	oldDev := &appsv1.Deployment{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: codeServer.Name, Namespace: codeServer.Namespace}, oldDev)
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: codeServer.Name, Namespace: codeServer.Namespace}, oldDev)
 	if err != nil && errors.IsNotFound(err) {
 		reqLogger.Info("Creating a Deployment.")
 		err = r.Client.Create(context.TODO(), newDev)
@@ -446,6 +452,16 @@ func (r *CodeServerReconciler) addInitContainersForDeployment(m *csv1alpha1.Code
 	return containers
 }
 
+func (r *CodeServerReconciler) getDeployment(m *csv1alpha1.CodeServer, secret *corev1.Secret) (*appsv1.Deployment, error) {
+	if m.Spec.Runtime == csv1alpha1.RuntimeCode {
+		return r.deploymentForCodeServer(m, secret), nil
+	} else if m.Spec.Runtime == csv1alpha1.RuntimeGotty {
+		return r.deploymentForGotty(m, secret), nil
+	} else {
+		return nil, errrorlib.New(fmt.Sprintf("unsupported runtime %s", m.Spec.Runtime))
+	}
+}
+
 // deploymentForCodeServer returns a code server Deployment object
 func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
 	reqLogger := r.Log.WithValues("namespace", m.Namespace, "name", m.Name)
@@ -456,11 +472,6 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 	enablePriviledge := m.Spec.Privileged
 	priviledged := corev1.SecurityContext{
 		Privileged: enablePriviledge,
-	}
-	shareQuantity, _ := resourcev1.ParseQuantity("500M")
-	shareVolume := corev1.EmptyDirVolumeSource{
-		Medium:    "",
-		SizeLimit: &shareQuantity,
 	}
 	dataVolume := corev1.PersistentVolumeClaimVolumeSource{
 		ClaimName: m.Name,
@@ -490,6 +501,7 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 					Labels: ls,
 				},
 				Spec: corev1.PodSpec{
+					NodeSelector:   m.Spec.NodeSelector,
 					InitContainers: initContainer,
 					Containers: []corev1.Container{
 						{
@@ -509,43 +521,111 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 								},
 							},
 							Ports: []corev1.ContainerPort{{
-								ContainerPort: 8080,
+								ContainerPort: *m.Spec.Port,
 								Name:          "serverhttpport",
-							}},
-						},
-						{
-							Image:           r.Options.ExporterImage,
-							Name:            "status-exporter",
-							ImagePullPolicy: corev1.PullIfNotPresent,
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									MountPath: "/home/coder/.local/share/code-server",
-									Name:      "code-server-share-dir",
-								},
-							},
-							Env: []corev1.EnvVar{
-								{
-									Name:  "STAT_FILE",
-									Value: "/home/coder/.local/share/code-server/heartbeat",
-								},
-								{
-									Name:  "LISTEN_PORT",
-									Value: "8000",
-								},
-							},
-							Ports: []corev1.ContainerPort{{
-								ContainerPort: 8000,
-								Name:          "statusreporter",
 							}},
 						},
 					},
 					Volumes: []corev1.Volume{
 						{
-							Name: "code-server-share-dir",
+							Name: baseCodeVolume,
 							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &shareVolume,
+								PersistentVolumeClaim: &dataVolume,
 							},
 						},
+					},
+				},
+			},
+		},
+	}
+
+	if secret != nil {
+		reqLogger.Info(fmt.Sprintf("Found tls secret %s, will enable https for code server", secret.Name))
+		secretSource := corev1.SecretVolumeSource{
+			SecretName: r.Options.HttpsSecretName,
+		}
+		secretVolume := corev1.Volume{
+			Name: "code-server-secret-vol",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &secretSource,
+			},
+		}
+		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, secretVolume)
+		for index, con := range dep.Spec.Template.Spec.Containers {
+			if con.Name == CSNAME {
+				secretsArgument := []string{"--cert", fmt.Sprintf("/etc/config/csserver/%s", CertFile), "--cert-key", fmt.Sprintf("/etc/config/csserver/%s", CertKey)}
+				dep.Spec.Template.Spec.Containers[index].Args = append(dep.Spec.Template.Spec.Containers[index].Args, secretsArgument...)
+				newVolumeMounts := []corev1.VolumeMount{
+					{
+						MountPath: "/etc/config/csserver",
+						Name:      "code-server-secret-vol",
+					},
+				}
+				dep.Spec.Template.Spec.Containers[index].VolumeMounts = append(
+					dep.Spec.Template.Spec.Containers[index].VolumeMounts, newVolumeMounts...)
+			}
+		}
+	}
+	// Set CodeServer instance as the owner of the Deployment.
+	controllerutil.SetControllerReference(m, dep, r.Scheme)
+	return dep
+}
+
+// deploymentForCodeServer returns a code server Deployment object
+func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
+	reqLogger := r.Log.WithValues("namespace", m.Namespace, "name", m.Name)
+	ls := labelsForCodeServer(m.Name)
+	baseCodeDir := "/workspace"
+	baseCodeVolume := "code-server-workspace"
+	replicas := int32(1)
+	enablePriviledge := m.Spec.Privileged
+	priviledged := corev1.SecurityContext{
+		Privileged: enablePriviledge,
+	}
+	dataVolume := corev1.PersistentVolumeClaimVolumeSource{
+		ClaimName: m.Name,
+	}
+	initContainer := r.addInitContainersForDeployment(m, baseCodeDir, baseCodeVolume)
+	reqLogger.Info(fmt.Sprintf("init containers has been injected into deployment %v", initContainer))
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      m.Name,
+			Namespace: m.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: ls,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: ls,
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: initContainer,
+					NodeSelector:   m.Spec.NodeSelector,
+					Containers: []corev1.Container{
+						{
+							Image:           m.Spec.Image,
+							Name:            GOTTYNAME,
+							Env:             m.Spec.Envs,
+							Args:            m.Spec.Args,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							SecurityContext: &priviledged,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									MountPath: baseCodeDir,
+									Name:      baseCodeVolume,
+								},
+							},
+							Ports: []corev1.ContainerPort{{
+								ContainerPort: *m.Spec.Port,
+								Name:          "serverhttpport",
+							}},
+						},
+					},
+					Volumes: []corev1.Volume{
 						{
 							Name: baseCodeVolume,
 							VolumeSource: corev1.VolumeSource{

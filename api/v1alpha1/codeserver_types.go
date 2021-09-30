@@ -28,8 +28,8 @@ import (
 type RuntimeType string
 
 const (
-	// RuntimeContainer stands for application container.
-	RuntimeContainer RuntimeType = "Container"
+	// RuntimeGotty stands for application container.
+	RuntimeGotty RuntimeType = "Gotty"
 	// RuntimeLxd stands for system container.
 	RuntimeLxd RuntimeType = "Lxd"
 	// RuntimeVM stands for virtual machine.
@@ -55,9 +55,9 @@ type CodeServerSpec struct {
 	// Specifies the url for pod visiting
 	URL string `json:"url,omitempty" protobuf:"bytes,7,opt,name=url"`
 	// Specifies the pod port that will be mapped to ingress backend
-	Port *int64 `json:"port,omitempty" protobuf:"bytes,8,opt,name=port"`
+	Port *int32 `json:"port,omitempty" protobuf:"bytes,8,opt,name=port"`
 	// Specifies the envs
-	Envs []string `json:"envs,omitempty" protobuf:"bytes,9,opt,name=envs"`
+	Envs []v1.EnvVar `json:"envs,omitempty" protobuf:"bytes,9,opt,name=envs"`
 	// Specifies the envs
 	Args []string `json:"args,omitempty" protobuf:"bytes,10,opt,name=args"`
 	// Specifies the image used to running code server
@@ -68,6 +68,8 @@ type CodeServerSpec struct {
 	Privileged *bool `json:"privileged,omitempty" protobuf:"bytes,13,opt,name=privileged"`
 	// Specifies the init plugins that will be running to finish before code server running.
 	InitPlugins map[string][]string `json:"initPlugins,omitempty" protobuf:"bytes,14,opt,name=initPlugins"`
+	// Specifies the node selector for scheduling.
+	NodeSelector map[string]string `json:"nodeSelector,omitempty" protobuf:"bytes,15,opt,name=nodeSelector"`
 }
 
 // ServerConditionType describes the type of state of code server condition

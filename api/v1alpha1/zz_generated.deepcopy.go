@@ -21,6 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -99,13 +100,15 @@ func (in *CodeServerSpec) DeepCopyInto(out *CodeServerSpec) {
 	in.Resources.DeepCopyInto(&out.Resources)
 	if in.Port != nil {
 		in, out := &in.Port, &out.Port
-		*out = new(int64)
+		*out = new(int32)
 		**out = **in
 	}
 	if in.Envs != nil {
 		in, out := &in.Envs, &out.Envs
-		*out = make([]string, len(*in))
-		copy(*out, *in)
+		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.Args != nil {
 		in, out := &in.Args, &out.Args
@@ -130,6 +133,13 @@ func (in *CodeServerSpec) DeepCopyInto(out *CodeServerSpec) {
 				copy(*out, *in)
 			}
 			(*out)[key] = outVal
+		}
+	}
+	if in.NodeSelector != nil {
+		in, out := &in.NodeSelector, &out.NodeSelector
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
 		}
 	}
 }

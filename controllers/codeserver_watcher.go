@@ -171,6 +171,10 @@ func (cs *CodeServerWatcher) ProbeAllCodeServer() {
 
 func (cs *CodeServerWatcher) ProbeCodeServer(key string, css *CodeServerActiveStatus) (bool, *time.Time) {
 	reqLogger := cs.Log.WithValues("codeserverwatcher", key)
+	if !strings.HasPrefix(css.ProbeEndpoint, "http") {
+		reqLogger.Info(fmt.Sprintf("failed to probe the codeserver %s, only http or https supported", key))
+		return false, nil
+	}
 	resp, err := http.Get(css.ProbeEndpoint)
 	if err != nil {
 		reqLogger.Error(err, fmt.Sprintf("failed to probe the codeserver %s", key))
@@ -183,10 +187,6 @@ func (cs *CodeServerWatcher) ProbeCodeServer(key string, css *CodeServerActiveSt
 		return false, nil
 	}
 
-	if resp.StatusCode == 204 {
-		reqLogger.Info(fmt.Sprintf("not content found in code server %s 's mtime attribute, maybe's been created now.", key))
-		return false, nil
-	}
 	if resp.StatusCode != 200 {
 		reqLogger.Error(err, fmt.Sprintf("failed to parse body from probe endpoint , status code %d", resp.StatusCode))
 		return false, nil
