@@ -23,8 +23,8 @@ import (
 	"syscall"
 	"time"
 
-	csv1alpha1 "github.com/tommylike/code-server-operator/api/v1alpha1"
-	"github.com/tommylike/code-server-operator/controllers"
+	csv1alpha1 "github.com/opensourceways/code-server-operator/api/v1alpha1"
+	"github.com/opensourceways/code-server-operator/controllers"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -75,8 +75,8 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&csOption.DomainName, "domain-name", "code.tommylike.me", "Code server domain name.")
-	flag.StringVar(&csOption.ExporterImage, "default-exporter", "tommylike/active-exporter-x86:stable",
+	flag.StringVar(&csOption.DomainName, "domain-name", "playground.osinfra.cn", "Code server domain name.")
+	flag.StringVar(&csOption.ExporterImage, "default-exporter", "opensourceway/active-exporter-x86:stable",
 		"Default exporter image used as a code server sidecar.")
 	flag.IntVar(&csOption.ProbeInterval, "probe-interval", 20,
 		"time in seconds between two probes on code server instance.")

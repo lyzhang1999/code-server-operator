@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
   creationTimestamp: null
-  name: codeservers.cs.tommylike.com
+  name: codeservers.cs.opensourceways.com
 spec:
-  group: cs.tommylike.com
+  group: cs.opensourceways.com
   names:
     kind: CodeServer
     listKind: CodeServerList

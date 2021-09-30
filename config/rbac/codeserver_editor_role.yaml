@@ -5,7 +5,7 @@ metadata:
   name: codeserver-editor-role
 rules:
 - apiGroups:
-  - cs.tommylike.com
+  - cs.opensourceways.com
   resources:
   - codeservers
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - cs.tommylike.com
+  - cs.opensourceways.com
   resources:
   - codeservers/status
   verbs:

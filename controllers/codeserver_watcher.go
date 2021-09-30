@@ -30,7 +30,7 @@ import (
 
 	"time"
 
-	csv1alpha1 "github.com/tommylike/code-server-operator/api/v1alpha1"
+	csv1alpha1 "github.com/opensourceways/code-server-operator/api/v1alpha1"
 )
 
 const TimeLayout = "2006-01-02T15:04:05.000Z"

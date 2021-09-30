@@ -1,5 +1,5 @@
-domain: tommylike.com
-repo: github.com/tommylike/code-server-operator
+domain: opensourceways.com
+repo: github.com/opensourceways/code-server-operator
 resources:
 - group: cs
   kind: CodeServer

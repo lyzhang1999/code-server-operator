@@ -1,4 +1,4 @@
-module github.com/tommylike/code-server-operator
+module github.com/opensourceways/code-server-operator
 
 go 1.13
 

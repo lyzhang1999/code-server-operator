@@ -2,8 +2,8 @@ package initplugins
 
 import (
 	"fmt"
-	"github.com/tommylike/code-server-operator/controllers/initplugins/git"
-	"github.com/tommylike/code-server-operator/controllers/initplugins/interface"
+	"github.com/opensourceways/code-server-operator/controllers/initplugins/git"
+	"github.com/opensourceways/code-server-operator/controllers/initplugins/interface"
 	"sync"
 )
 

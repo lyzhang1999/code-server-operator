@@ -14,7 +14,7 @@ jobs:
       - name: Publish controller to registry
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
-          name: tommylike/codeserver-controller-x86
+          name: opensourceway/codeserver-controller-x86
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           snapshot: true
@@ -22,7 +22,7 @@ jobs:
       - name: Publish exporter to registry
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
-          name: tommylike/active-exporter-x86
+          name: opensourceway/active-exporter-x86
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           snapshot: true
@@ -34,7 +34,7 @@ jobs:
       - name: Publish controller to registry
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
-          name: tommylike/codeserver-controller-arm
+          name: opensourceway/codeserver-controller-arm
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           snapshot: true
@@ -42,7 +42,7 @@ jobs:
       - name: Publish exporter to registry
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
-          name: tommylike/active-exporter-arm
+          name: opensourceway/active-exporter-arm
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           snapshot: true
@@ -54,7 +54,7 @@ jobs:
       - name: Publish controller to registry
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
-          name: tommylike/cs-ubuntu-x86
+          name: opensourceway/cs-ubuntu-x86
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           snapshot: true
@@ -66,7 +66,7 @@ jobs:
       - name: Publish controller to registry
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
-          name: tommylike/cs-ubuntu-arm
+          name: opensourceway/cs-ubuntu-arm
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           snapshot: true

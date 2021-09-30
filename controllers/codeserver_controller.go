@@ -20,8 +20,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
-	"github.com/tommylike/code-server-operator/controllers/initplugins"
-	"github.com/tommylike/code-server-operator/controllers/initplugins/interface"
+	"github.com/opensourceways/code-server-operator/controllers/initplugins"
+	"github.com/opensourceways/code-server-operator/controllers/initplugins/interface"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1 "k8s.io/api/extensions/v1beta1"
@@ -38,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"strings"
 
-	csv1alpha1 "github.com/tommylike/code-server-operator/api/v1alpha1"
+	csv1alpha1 "github.com/opensourceways/code-server-operator/api/v1alpha1"
 )
 
 const (
@@ -58,8 +58,8 @@ type CodeServerReconciler struct {
 	ReqCh   chan CodeServerRequest
 }
 
-// +kubebuilder:rbac:groups=cs.tommylike.com,resources=codeservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=cs.tommylike.com,resources=codeservers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=cs.opensourceways.com,resources=codeservers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cs.opensourceways.com,resources=codeservers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=events,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete

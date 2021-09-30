@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/golang/glog"
-	"github.com/tommylike/code-server-operator/controllers/initplugins/interface"
+	"github.com/opensourceways/code-server-operator/controllers/initplugins/interface"
 	corev1 "k8s.io/api/core/v1"
 	"strings"
 )

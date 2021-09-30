@@ -1,5 +1,5 @@
 # Code sever operator
-![Publish Docker images](https://github.com/TommyLike/code-server-operator/workflows/Publish%20Docker%20images/badge.svg?branch=stable)
+![Publish Docker images](https://github.com/opensourceways/code-server-operator/workflows/Publish%20Docker%20images/badge.svg?branch=stable)
 
 This project used to launch multiple code server instances in k8s cluster.
 
@@ -14,7 +14,7 @@ This project used to launch multiple code server instances in k8s cluster.
 # Sample Yaml
 The sample yaml can be found in `example` folder:
 ```$xslt
-apiVersion: cs.tommylike.com/v1alpha1
+apiVersion: cs.opensourceways.com/v1alpha1
 kind: CodeServer
 metadata:
   name: codeserver-tommy

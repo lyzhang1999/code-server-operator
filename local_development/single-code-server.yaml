@@ -74,7 +74,7 @@ spec:
           securityContext:
             privileged: true
         - name: status-exporter
-          image: tommylike/code-server-exporter:0.0.1
+          image: opensourceway/code-server-exporter:0.0.1
           imagePullPolicy: "IfNotPresent"
           volumeMounts:
             - mountPath: /home/coder/.local/share/code-server

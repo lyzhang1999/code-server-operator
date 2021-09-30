@@ -1,4 +1,4 @@
-apiVersion: cs.tommylike.com/v1alpha1
+apiVersion: cs.opensourceways.com/v1alpha1
 kind: CodeServer
 metadata:
   name: codeserver-tommy
