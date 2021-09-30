@@ -1,0 +1,158 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.4
+  creationTimestamp: null
+  name: codeservers.cs.opensourceways.com
+spec:
+  group: cs.opensourceways.com
+  names:
+    kind: CodeServer
+    listKind: CodeServerList
+    plural: codeservers
+    singular: codeserver
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      description: CodeServer is the Schema for the codeservers API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: CodeServerSpec defines the desired state of CodeServer
+          properties:
+            aliveProbe:
+              description: Specifies the alive probe to detect whether pod is in use,
+                IP address needs to be 0.0.0.0
+              type: string
+            args:
+              description: Specifies the envs
+              items:
+                type: string
+              type: array
+            envs:
+              description: Specifies the envs
+              items:
+                type: string
+              type: array
+            image:
+              description: Specifies the image used to running code server
+              type: string
+            inactiveAfterSeconds:
+              description: Specifies the period before controller inactive the resource
+                (delete all resources except volume).
+              format: int64
+              type: integer
+            initPlugins:
+              additionalProperties:
+                items:
+                  type: string
+                type: array
+              description: Specifies the init plugins that will be running to finish
+                before code server running.
+              type: object
+            port:
+              description: Specifies the pod port that will be mapped to ingress backend
+              format: int64
+              type: integer
+            privileged:
+              description: Whether to enable pod privileged
+              type: boolean
+            recycleAfterSeconds:
+              description: Specifies the period before controller recycle the resource
+                (delete all resources).
+              format: int64
+              type: integer
+            resources:
+              description: Specifies the resource requirements for code server pod.
+              properties:
+                limits:
+                  additionalProperties:
+                    type: string
+                  description: 'Limits describes the maximum amount of compute resources
+                    allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                  type: object
+                requests:
+                  additionalProperties:
+                    type: string
+                  description: 'Requests describes the minimum amount of compute resources
+                    required. If Requests is omitted for a container, it defaults
+                    to Limits if that is explicitly specified, otherwise to an implementation-defined
+                    value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                  type: object
+              type: object
+            runtime:
+              description: Specifies the runtime used for pod boostrap
+              type: string
+            storageClassName:
+              description: Specifies the storage class name for the persistent volume
+              type: string
+            url:
+              description: Specifies the url for pod visiting
+              type: string
+            volumeSize:
+              description: Specifies the volume size that will be used for code server
+              type: string
+          type: object
+        status:
+          description: CodeServerStatus defines the observed state of CodeServer
+          properties:
+            conditions:
+              description: Server conditions
+              items:
+                description: ServerCondition describes the state of the code server
+                  at a certain point.
+                properties:
+                  lastTransitionTime:
+                    description: Last time the condition transitioned from one status
+                      to another.
+                    format: date-time
+                    type: string
+                  lastUpdateTime:
+                    description: The last time this condition was updated.
+                    format: date-time
+                    type: string
+                  message:
+                    description: A human readable message indicating details about
+                      the transition.
+                    type: string
+                  reason:
+                    description: The reason for the condition's last transition.
+                    type: string
+                  status:
+                    description: Status of the condition, one of True, False, Unknown.
+                    type: string
+                  type:
+                    description: Type of code server condition.
+                    type: string
+                required:
+                - status
+                - type
+                type: object
+              type: array
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

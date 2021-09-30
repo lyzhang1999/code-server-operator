@@ -160,7 +160,7 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		SetCondition(&codeServer.Status, readyCondition)
 		err = r.Client.Get(context.TODO(), req.NamespacedName, codeServer)
 		if err != nil {
-			reqLogger.Error(err,"Failed to get CoderServer object for update.")
+			reqLogger.Error(err, "Failed to get CoderServer object for update.")
 			return reconcile.Result{Requeue: true}, err
 		}
 		err = r.Client.Update(context.TODO(), codeServer)
@@ -496,7 +496,7 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 							Image:           m.Spec.Image,
 							Name:            CSNAME,
 							ImagePullPolicy: corev1.PullIfNotPresent,
-							Args: arguments,
+							Args:            arguments,
 							SecurityContext: &priviledged,
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -657,7 +657,7 @@ func (r *CodeServerReconciler) pvcForCodeServer(m *csv1alpha1.CodeServer) (*core
 }
 
 func (r *CodeServerReconciler) getInstanceUrl(m *csv1alpha1.CodeServer) string {
-	if len(r.Options.UrlPrefix) == 0  {
+	if len(r.Options.UrlPrefix) == 0 {
 		return fmt.Sprintf("/%s", strings.Trim(m.Spec.URL, "/"))
 	} else {
 		return fmt.Sprintf("/%s/%s", strings.Trim(r.Options.UrlPrefix, "/"), strings.Trim(m.Spec.URL, "/"))
@@ -701,7 +701,7 @@ func (r *CodeServerReconciler) ingressForCodeServer(m *csv1alpha1.CodeServer, se
 	if secret != nil {
 		ingress.Spec.TLS = []extv1.IngressTLS{
 			{
-				Hosts:[]string{r.Options.DomainName},
+				Hosts:      []string{r.Options.DomainName},
 				SecretName: r.Options.HttpsSecretName,
 			},
 		}

@@ -26,7 +26,7 @@ func RegisterPlugins(name string, pc func(c _interface.PluginClients, parameters
 	pluginMutex.Lock()
 	defer pluginMutex.Unlock()
 	pluginsHolder[name] = PluginCollections{
-		BuildFunc:          pc,
+		BuildFunc: pc,
 	}
 }
 
