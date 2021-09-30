@@ -473,6 +473,7 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 	priviledged := corev1.SecurityContext{
 		Privileged: enablePriviledge,
 	}
+
 	dataVolume := corev1.PersistentVolumeClaimVolumeSource{
 		ClaimName: m.Name,
 	}
