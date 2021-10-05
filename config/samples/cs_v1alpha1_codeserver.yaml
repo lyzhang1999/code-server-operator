@@ -18,7 +18,7 @@ spec:
     - name: GOTTY_CREDENTIAL
       value: name:password
     - name: GOTTY_TIMEOUT
-      value: "60"
+      value: "300"
     - name: SHELL_USER
       value: tommylikehu
     - name: COMMUNITY_EMAIL
