@@ -10,13 +10,13 @@ export CLUSTER_CONTEXT="--name ${CLUSTER_NAME}"
 function cleanup {
   echo "Uninstall code server services"
   #kubectl delete -f ${CURRENT_ROOT}/code-server-development.yaml
-  echo "Deleting nfs and ingress services"
-  helm delete code-server-nfs
-  helm delete code-server-ingress
+  #echo "Deleting nfs and ingress services"
+  #helm delete code-server-nfs
+  #helm delete code-server-ingress
   echo "Running kind: [kind delete cluster ${CLUSTER_CONTEXT}]"
   kind delete cluster ${CLUSTER_CONTEXT}
 
 }
-export KUBECONFIG="$(kind get kubeconfig-path ${CLUSTER_CONTEXT})"
+export KUBECONFIG="~/.kube/kind-config-${CLUSTER_NAME}"
 
 cleanup

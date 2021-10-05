@@ -52,8 +52,8 @@ function check-kind {
   echo "checking kind"
   which kind >/dev/null 2>&1
   if [[ $? -ne 0 ]]; then
-    echo "installing kind ."
-    GO111MODULE="on" go get sigs.k8s.io/kind@v0.4.0
+    echo "installing kind(v0.11.0) ."
+    GO111MODULE="on" go get -u sigs.k8s.io/kind@v0.11.0
   else
     echo -n "found kind, version: " && kind version
   fi
@@ -61,29 +61,30 @@ function check-kind {
 
 
 function install-codeserver-service {
-  echo "installing helm service"
-  kubectl create serviceaccount --namespace kube-system tiller
-  kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+  # helm and nfs helm chart is disabled since we can use standard storage class
+  #echo "installing helm service"
+  #kubectl create serviceaccount --namespace kube-system tiller
+  #kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
 
-  install-helm
-  helm init --service-account tiller --kubeconfig ${KUBECONFIG} --wait
+  #install-helm
+  #helm init --service-account tiller --kubeconfig ${KUBECONFIG} --wait
 
 
-  echo "Install nfs common utils into kind nodes"
-  NODES=$(kind get nodes --name ${CLUSTER_NAME})
-  NODES_ARY=($NODES)
-  for key in "${!NODES_ARY[@]}"
-  do
-   echo "starting to patch node ${NODES_ARY[$key]} and install nfs-common utils"
-   docker exec -it ${NODES_ARY[$key]} bin/bash -c "apt update && apt install nfs-common -y"
-  done
+  #echo "Install nfs common utils into kind nodes"
+  #NODES=$(kind get nodes --name ${CLUSTER_NAME})
+  #NODES_ARY=($NODES)
+  #for key in "${!NODES_ARY[@]}"
+  #do
+  # echo "starting to patch node ${NODES_ARY[$key]} and install nfs-common utils"
+  # docker exec -it ${NODES_ARY[$key]} bin/bash -c "apt update && apt install nfs-common -y"
+  #done
 
-  echo "Install nfs provisioner"
-  kubectl create clusterrolebinding default-cluster-rule --clusterrole=cluster-admin --serviceaccount=default:default
-  helm repo add cloudposse-incubator https://charts.cloudposse.com/incubator
-  helm install --name code-server-nfs cloudposse-incubator/nfs-provisioner --set persistence.storageClass=standard --set persistence.size=1Gi --wait
-  echo "Install ingress controller(nginx)"
-  helm install --name code-server-ingress stable/nginx-ingress --set controller.hostNetwork=true --set controller.service.nodePorts.http=30080 --set controller.service.nodePorts.https=30082
+  #echo "Install nfs provisioner"
+  #kubectl create clusterrolebinding default-cluster-rule --clusterrole=cluster-admin --serviceaccount=default:default
+  #helm repo add cloudposse-incubator https://charts.cloudposse.com/incubator
+  #helm install --name code-server-nfs cloudposse-incubator/nfs-provisioner --set persistence.storageClass=standard --set persistence.size=1Gi --wait
+  #echo "Install ingress controller(nginx)"
+  #helm install --name code-server-ingress stable/nginx-ingress --set controller.hostNetwork=true --set controller.service.nodePorts.http=30080 --set controller.service.nodePorts.https=30082
 
 
   echo "Install code server services"
@@ -106,6 +107,6 @@ fi
 
 kind-up-cluster
 
-export KUBECONFIG="$(kind get kubeconfig-path ${CLUSTER_CONTEXT})"
+export KUBECONFIG="~/.kube/kind-config-${CLUSTER_NAME}"
 
 install-codeserver-service
