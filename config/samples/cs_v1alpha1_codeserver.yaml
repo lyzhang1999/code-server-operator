@@ -3,13 +3,31 @@ kind: CodeServer
 metadata:
   name: codeserver-sample
 spec:
+  runtime: gotty
   url: codeserversample
-  image: "codercom/code-server:v2"
+  image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
   volumeSize: "100m"
-  storageClassName: "local-nfs"
+  storageClassName: "standard"
   recycleAfterSeconds: 500
+  port: 8080
+  envs:
+    - name: GOTTY_PORT
+      value: "8080"
+    - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER
+      value: "true"
+    - name: GOTTY_CREDENTIAL
+      value: name:password
+    - name: GOTTY_TIMEOUT
+      value: "60"
+    - name: SHELL_USER
+      value: tommylikehu
+    - name: COMMUNITY_EMAIL
+      value: contact@openeuler.io
+  args:
+    - zsh
+  aliveProbe: "http://0.0.0.0:8080/active-time"
+  privileged: false
   resources:
     requests:
       cpu: "1"
-  serverCipher: "1234"
 

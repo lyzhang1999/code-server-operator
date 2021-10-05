@@ -92,7 +92,7 @@ func (cs *CodeServerWatcher) recycleCodeServer(req types.NamespacedName) {
 func NewCodeServerWatcher(client client.Client, log logr.Logger, schema *runtime.Scheme,
 	options *CodeServerOption, reqCh <-chan CodeServerRequest, probeCh <-chan time.Time) *CodeServerWatcher {
 	cache := CodeServerActiveCache{}
-	cache.InactiveCaches = make(map[string]CodeServerActiveStatus)
+	cache.InactiveCaches = make(map[string]*CodeServerActiveStatus)
 	recycleCache := CodeServerRecycleCache{}
 	recycleCache.Caches = make(map[string]CodeServerRecycleStatus)
 	return &CodeServerWatcher{
@@ -157,6 +157,7 @@ func (cs *CodeServerWatcher) ProbeAllCodeServer() {
 					cs.inActiveCodeServer(css.NamespacedName)
 					cs.inActiveCache.DeleteFromName(css.NamespacedName)
 				} else {
+					reqLogger.Info(fmt.Sprintf("probe code server %s failed failure count will be bumped", key))
 					cs.inActiveCache.BumpFailureCount(key)
 				}
 			} else {

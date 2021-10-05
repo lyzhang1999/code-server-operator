@@ -453,9 +453,10 @@ func (r *CodeServerReconciler) addInitContainersForDeployment(m *csv1alpha1.Code
 }
 
 func (r *CodeServerReconciler) getDeployment(m *csv1alpha1.CodeServer, secret *corev1.Secret) (*appsv1.Deployment, error) {
-	if m.Spec.Runtime == csv1alpha1.RuntimeCode {
+	runtime := string(m.Spec.Runtime)
+	if strings.EqualFold(runtime, string(csv1alpha1.RuntimeCode)) {
 		return r.deploymentForCodeServer(m, secret), nil
-	} else if m.Spec.Runtime == csv1alpha1.RuntimeGotty {
+	} else if strings.EqualFold(runtime, string(csv1alpha1.RuntimeGotty)) {
 		return r.deploymentForGotty(m, secret), nil
 	} else {
 		return nil, errrorlib.New(fmt.Sprintf("unsupported runtime %s", m.Spec.Runtime))
@@ -624,6 +625,7 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 								ContainerPort: *m.Spec.Port,
 								Name:          "serverhttpport",
 							}},
+							Resources: m.Spec.Resources,
 						},
 					},
 					Volumes: []corev1.Volume{

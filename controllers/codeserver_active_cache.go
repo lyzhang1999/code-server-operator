@@ -23,7 +23,7 @@ import (
 
 type CodeServerActiveCache struct {
 	sync.RWMutex
-	InactiveCaches map[string]CodeServerActiveStatus
+	InactiveCaches map[string]*CodeServerActiveStatus
 }
 
 type CodeServerActiveStatus struct {
@@ -40,7 +40,7 @@ func (c *CodeServerActiveCache) AddOrUpdate(req CodeServerRequest) {
 		obj.Duration = req.duration
 		obj.ProbeEndpoint = req.endpoint
 	} else {
-		c.InactiveCaches[req.resource.String()] = CodeServerActiveStatus{
+		c.InactiveCaches[req.resource.String()] = &CodeServerActiveStatus{
 			ProbeEndpoint:  req.endpoint,
 			Duration:       req.duration,
 			FailureCount:   0,
@@ -76,7 +76,7 @@ func (c *CodeServerActiveCache) Get(key string) *CodeServerActiveStatus {
 	c.RLock()
 	defer c.RUnlock()
 	if obj, found := c.InactiveCaches[key]; found {
-		return &obj
+		return obj
 	}
 	return nil
 }

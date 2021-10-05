@@ -29,13 +29,13 @@ type RuntimeType string
 
 const (
 	// RuntimeGotty stands for application container.
-	RuntimeGotty RuntimeType = "Gotty"
+	RuntimeGotty RuntimeType = "gotty"
 	// RuntimeLxd stands for system container.
-	RuntimeLxd RuntimeType = "Lxd"
+	RuntimeLxd RuntimeType = "lxd"
 	// RuntimeVM stands for virtual machine.
-	RuntimeVM RuntimeType = "VM"
+	RuntimeVM RuntimeType = "wm"
 	// RuntimeCode stands for VS code.
-	RuntimeCode RuntimeType = "Code"
+	RuntimeCode RuntimeType = "code"
 )
 
 // CodeServerSpec defines the desired state of CodeServer
