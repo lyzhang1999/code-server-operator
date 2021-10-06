@@ -23,6 +23,10 @@ spec:
       value: tommylikehu
     - name: COMMUNITY_EMAIL
       value: contact@openeuler.io
+    - name: GOTTY_WS_ORIGIN
+      value: ".*"
+    - name: GOTTY_PERMIT_WRITE
+      value: "true"
   args:
     - zsh
   aliveProbe: "http://0.0.0.0:8080/active-time"

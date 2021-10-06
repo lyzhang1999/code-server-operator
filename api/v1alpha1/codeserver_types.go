@@ -63,13 +63,17 @@ type CodeServerSpec struct {
 	// Specifies the image used to running code server
 	Image string `json:"image,omitempty" protobuf:"bytes,11,opt,name=image"`
 	// Specifies the alive probe to detect whether pod is in use, IP address needs to be 0.0.0.0
-	AliveProbe string `json:"aliveProbe,omitempty" protobuf:"bytes,12,opt,name=aliveProbe"`
+	ConnectProbe string `json:"aliveProbe,omitempty" protobuf:"bytes,12,opt,name=aliveProbe"`
 	// Whether to enable pod privileged
 	Privileged *bool `json:"privileged,omitempty" protobuf:"bytes,13,opt,name=privileged"`
 	// Specifies the init plugins that will be running to finish before code server running.
 	InitPlugins map[string][]string `json:"initPlugins,omitempty" protobuf:"bytes,14,opt,name=initPlugins"`
 	// Specifies the node selector for scheduling.
 	NodeSelector map[string]string `json:"nodeSelector,omitempty" protobuf:"bytes,15,opt,name=nodeSelector"`
+	// Specifies the liveness Probe.
+	LivenessProbe *v1.Probe `json:"livenessProbe,omitempty" protobuf:"bytes,16,opt,name=livenessProbe"`
+	// Specifies the readiness Probe.
+	ReadinessProbe *v1.Probe `json:"readinessProbe,omitempty" protobuf:"bytes,17,opt,name=readinessProbe"`
 }
 
 // ServerConditionType describes the type of state of code server condition

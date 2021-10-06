@@ -147,7 +147,7 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			readyCondition.Reason = "waiting deployment to be available"
 		} else {
 			//add it to watch list
-			endPoint := strings.Replace(codeServer.Spec.AliveProbe, "0.0.0.0", service.Spec.ClusterIP, 0)
+			endPoint := strings.Replace(codeServer.Spec.ConnectProbe, "0.0.0.0", service.Spec.ClusterIP, 0)
 			if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
 				// we keep the instance within MaxActiveSeconds maximumly
 				r.addToInactiveWatch(req.NamespacedName, MaxActiveSeconds, endPoint)
@@ -683,14 +683,6 @@ func (r *CodeServerReconciler) serviceForCodeServer(m *csv1alpha1.CodeServer, se
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: ls,
-			Ports: []corev1.ServicePort{
-				{
-					Port:       8000,
-					Name:       "web-status",
-					Protocol:   corev1.ProtocolTCP,
-					TargetPort: intstr.FromInt(8000),
-				},
-			},
 		},
 	}
 	if secret == nil {
@@ -698,14 +690,14 @@ func (r *CodeServerReconciler) serviceForCodeServer(m *csv1alpha1.CodeServer, se
 			Port:       8080,
 			Name:       "web-ui",
 			Protocol:   corev1.ProtocolTCP,
-			TargetPort: intstr.FromInt(8080),
+			TargetPort: intstr.FromInt(int(*m.Spec.Port)),
 		})
 	} else {
 		ser.Spec.Ports = append(ser.Spec.Ports, corev1.ServicePort{
 			Port:       8443,
 			Name:       "web-ui",
 			Protocol:   corev1.ProtocolTCP,
-			TargetPort: intstr.FromInt(8443),
+			TargetPort: intstr.FromInt(int(*m.Spec.Port)),
 		})
 	}
 	// Set CodeServer instance as the owner of the Service.
