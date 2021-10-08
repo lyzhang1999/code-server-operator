@@ -177,11 +177,13 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 
 		}
 		SetCondition(&codeServer.Status, readyCondition)
+		updateStatus := codeServer.Status
 		err = r.Client.Get(context.TODO(), req.NamespacedName, codeServer)
 		if err != nil {
 			reqLogger.Error(err, "Failed to get CoderServer object for update.")
 			return reconcile.Result{Requeue: true}, err
 		}
+		codeServer.Status = updateStatus
 		err = r.Client.Update(context.TODO(), codeServer)
 		if err != nil {
 			reqLogger.Error(err, "Failed to update code server status.")
