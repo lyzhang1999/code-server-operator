@@ -36,15 +36,15 @@ spec:
           spec:
             description: CodeServerSpec defines the desired state of CodeServer
             properties:
-              aliveProbe:
-                description: Specifies the alive probe to detect whether pod is in
-                  use, IP address needs to be 0.0.0.0
-                type: string
               args:
                 description: Specifies the envs
                 items:
                   type: string
                 type: array
+              connectProbe:
+                description: Specifies the alive probe to detect whether pod is connected.
+                  Only http path are required.
+                type: string
               envs:
                 description: Specifies the envs
                 items:

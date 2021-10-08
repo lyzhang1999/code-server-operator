@@ -178,7 +178,8 @@ func (cs *CodeServerWatcher) ProbeCodeServer(key string, css *CodeServerActiveSt
 	}
 	resp, err := http.Get(css.ProbeEndpoint)
 	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("failed to probe the codeserver %s", key))
+		reqLogger.Error(err, fmt.Sprintf("failed to probe the codeserver %s with endpoint %s",
+			key, css.ProbeEndpoint))
 		return false, nil
 	}
 	defer resp.Body.Close()
@@ -189,7 +190,9 @@ func (cs *CodeServerWatcher) ProbeCodeServer(key string, css *CodeServerActiveSt
 	}
 
 	if resp.StatusCode != 200 {
-		reqLogger.Error(err, fmt.Sprintf("failed to parse body from probe endpoint , status code %d", resp.StatusCode))
+		reqLogger.Error(err, fmt.Sprintf(
+			"failed to parse body from probe endpoint for codeserver %s, status code %d, endpoint %s",
+			key, resp.StatusCode, css.ProbeEndpoint))
 		return false, nil
 	}
 	timeStr := strings.Trim(string(body), "\"")

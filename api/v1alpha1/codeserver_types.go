@@ -62,8 +62,9 @@ type CodeServerSpec struct {
 	Args []string `json:"args,omitempty" protobuf:"bytes,10,opt,name=args"`
 	// Specifies the image used to running code server
 	Image string `json:"image,omitempty" protobuf:"bytes,11,opt,name=image"`
-	// Specifies the alive probe to detect whether pod is in use, IP address needs to be 0.0.0.0
-	ConnectProbe string `json:"aliveProbe,omitempty" protobuf:"bytes,12,opt,name=aliveProbe"`
+	// Specifies the alive probe to detect whether pod is connected. Only http path are supported and time should be in
+	// the format of 2006-01-02T15:04:05.000Z.
+	ConnectProbe string `json:"connectProbe,omitempty" protobuf:"bytes,12,opt,name=connectProbe"`
 	// Whether to enable pod privileged
 	Privileged *bool `json:"privileged,omitempty" protobuf:"bytes,13,opt,name=privileged"`
 	// Specifies the init plugins that will be running to finish before code server running.

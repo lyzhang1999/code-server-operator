@@ -68,6 +68,7 @@ type CodeServerReconciler struct {
 // +kubebuilder:rbac:groups=extensions,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=extensions,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=,resources=secrets,verbs=get;list;watch
 func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	reqLogger := r.Log.WithValues("codeserver", req.NamespacedName)
@@ -96,8 +97,12 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		inActiveCondition := GetCondition(codeServer.Status, csv1alpha1.ServerInactive)
 		if (codeServer.Spec.RecycleAfterSeconds == nil) || *codeServer.Spec.RecycleAfterSeconds <= 0 || *codeServer.Spec.RecycleAfterSeconds >= MaxKeepSeconds {
 			// we keep the instance within MaxKeepSeconds maximumly
+			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d inactive.",
+				MaxKeepSeconds))
 			r.addToRecycleWatch(req.NamespacedName, MaxKeepSeconds, inActiveCondition.LastTransitionTime)
 		} else {
+			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d inactive.",
+				*codeServer.Spec.RecycleAfterSeconds))
 			r.addToRecycleWatch(req.NamespacedName, *codeServer.Spec.RecycleAfterSeconds, inActiveCondition.LastTransitionTime)
 		}
 		if err := r.deleteCodeServerResource(codeServer.Name, codeServer.Namespace, false); err != nil {
@@ -147,15 +152,27 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			readyCondition.Reason = "waiting deployment to be available"
 		} else {
 			//add it to watch list
-			endPoint := strings.Replace(codeServer.Spec.ConnectProbe, "0.0.0.0", service.Spec.ClusterIP, 0)
+			var endPoint string
+			if tlsSecret == nil {
+				endPoint = fmt.Sprintf("http://%s:8080/%s", service.Spec.ClusterIP,
+					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
+			} else {
+				endPoint = fmt.Sprintf("https://%s:8443/%s", service.Spec.ClusterIP,
+					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
+			}
+
 			if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
 				// we keep the instance within MaxActiveSeconds maximumly
 				r.addToInactiveWatch(req.NamespacedName, MaxActiveSeconds, endPoint)
+				reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
+					MaxActiveSeconds))
 			} else if *codeServer.Spec.InactiveAfterSeconds == 0 {
 				// we will not watch this code server instance if inactive is set 0
-				reqLogger.Info("Code server will never be inactived")
+				reqLogger.Info("Code server will never be disactived")
 			} else {
 				r.addToInactiveWatch(req.NamespacedName, *codeServer.Spec.InactiveAfterSeconds, endPoint)
+				reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
+					*codeServer.Spec.InactiveAfterSeconds))
 			}
 
 		}

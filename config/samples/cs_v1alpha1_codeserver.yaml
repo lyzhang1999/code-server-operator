@@ -8,7 +8,8 @@ spec:
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
   volumeSize: "100m"
   storageClassName: "standard"
-  recycleAfterSeconds: 500
+  inactiveAfterSeconds: 60
+  recycleAfterSeconds: 60
   port: 8080
   envs:
     - name: GOTTY_PORT
@@ -17,8 +18,6 @@ spec:
       value: "true"
     - name: GOTTY_CREDENTIAL
       value: name:password
-    - name: GOTTY_TIMEOUT
-      value: "300"
     - name: SHELL_USER
       value: tommylikehu
     - name: COMMUNITY_EMAIL
@@ -29,7 +28,7 @@ spec:
       value: "true"
   args:
     - zsh
-  aliveProbe: "http://0.0.0.0:8080/active-time"
+  connectProbe: "/active-time"
   privileged: false
   resources:
     requests:
