@@ -4,5 +4,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: opensourceways/codeserver-controller
-  newTag: 1c3363b4d96f525ec987b9141b07c8ba9e804ccb
+  newName: opensourceway/codeserver-controller
+  newTag: 7ef7cf690c1d0ef44375cf2e074dbda5638a0ceb

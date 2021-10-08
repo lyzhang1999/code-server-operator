@@ -45,7 +45,6 @@ import (
 
 const (
 	CSNAME           = "code-server"
-	GOTTYNAME        = "gotty-server"
 	MaxActiveSeconds = 60 * 60 * 24
 	MaxKeepSeconds   = 60 * 60 * 24 * 30
 	CertFile         = "tls.crt"
@@ -127,13 +126,13 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		if err != nil {
 			return reconcile.Result{Requeue: true}, err
 		}
-		// 2/5:reconcile ingress
-		_, err = r.reconcileForIngress(codeServer, tlsSecret)
+		// 2/5: reconcile service
+		service, err := r.reconcileForService(codeServer, tlsSecret)
 		if err != nil {
 			return reconcile.Result{Requeue: true}, err
 		}
-		// 3/5: reconcile service
-		service, err := r.reconcileForService(codeServer, tlsSecret)
+		// 3/5:reconcile ingress
+		_, err = r.reconcileForIngress(codeServer, tlsSecret)
 		if err != nil {
 			return reconcile.Result{Requeue: true}, err
 		}
@@ -156,11 +155,12 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		} else {
 			//add it to watch list
 			var endPoint string
+			// only port differs, since no matter tls is enabled or nor we both expose upstream via http
 			if tlsSecret == nil {
-				endPoint = fmt.Sprintf("http://%s:8080/%s", service.Spec.ClusterIP,
+				endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpPort,
 					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
 			} else {
-				endPoint = fmt.Sprintf("https://%s:8443/%s", service.Spec.ClusterIP,
+				endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpsPort,
 					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
 			}
 
@@ -215,7 +215,7 @@ func (r *CodeServerReconciler) deleteFromInactiveWatch(resource types.Namespaced
 }
 
 func (r *CodeServerReconciler) findLegalCertSecrets(codeServer *csv1alpha1.CodeServer) *corev1.Secret {
-	reqLogger := r.Log.WithValues("namespace", codeServer.Name, "name", codeServer.Namespace)
+	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
 	tlsSecret := &corev1.Secret{}
 	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: r.Options.HttpsSecretName, Namespace: codeServer.Namespace}, tlsSecret)
 	if err == nil {
@@ -632,7 +632,7 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 					Containers: []corev1.Container{
 						{
 							Image:           m.Spec.Image,
-							Name:            GOTTYNAME,
+							Name:            CSNAME,
 							Env:             m.Spec.Envs,
 							Args:            m.Spec.Args,
 							ImagePullPolicy: corev1.PullIfNotPresent,
@@ -661,7 +661,7 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 	//https will be disabled no matter secret is provided or not. we only expose different port here.
 	if secret != nil {
 		for index, con := range dep.Spec.Template.Spec.Containers {
-			if con.Name == GOTTYNAME {
+			if con.Name == CSNAME {
 				dep.Spec.Template.Spec.Containers[index].Env = append(
 					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
 						Name:  "GOTTY_PORT",
@@ -676,7 +676,7 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 		}
 	} else {
 		for index, con := range dep.Spec.Template.Spec.Containers {
-			if con.Name == GOTTYNAME {
+			if con.Name == CSNAME {
 				dep.Spec.Template.Spec.Containers[index].Env = append(
 					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
 						Name:  "GOTTY_PORT",
@@ -737,6 +737,7 @@ func (r *CodeServerReconciler) pvcForCodeServer(m *csv1alpha1.CodeServer) (*core
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      m.Name,
 			Namespace: m.Namespace,
+			Annotations: m.Spec.PVCAnnotations,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
@@ -935,18 +936,9 @@ func needUpdateService(old, new *corev1.Service) bool {
 		!equality.Semantic.DeepEqual(old.Spec.Selector, new.Spec.Selector)
 }
 
-func getCodeServerImage(containers []corev1.Container) string {
-	for _, c := range containers {
-		if c.Name == CSNAME {
-			return c.Image
-		}
-	}
-	return ""
-}
-
 func needUpdateDeployment(old, new *appsv1.Deployment) bool {
 	return !equality.Semantic.DeepEqual(old.Spec.Template.Spec.Volumes, new.Spec.Template.Spec.Volumes) ||
-		getCodeServerImage(old.Spec.Template.Spec.Containers) != getCodeServerImage(new.Spec.Template.Spec.Containers)
+		!equality.Semantic.DeepEqual(old.Spec.Template.Spec.Containers, new.Spec.Template.Spec.Containers)
 }
 
 func (r *CodeServerReconciler) SetupWithManager(mgr ctrl.Manager) error {

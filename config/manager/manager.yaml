@@ -29,6 +29,7 @@ spec:
         - --enable-leader-election
         - --max-probe-retry=20
         image: controller:latest
+        imagePullPolicy: Always
         name: manager
         resources:
           limits:

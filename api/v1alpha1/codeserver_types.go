@@ -75,6 +75,8 @@ type CodeServerSpec struct {
 	ReadinessProbe *v1.Probe `json:"readinessProbe,omitempty" protobuf:"bytes,16,opt,name=readinessProbe"`
 	// Specifies workspace location.
 	WorkspaceLocation string `json:"workspaceLocation,omitempty" protobuf:"bytes,17,opt,name=workspaceLocation"`
+	// Specifies the additional annotations for persistent volume claim
+	PVCAnnotations map[string]string `json:"pvcAnnotations,omitempty" protobuf:"bytes,18,opt,name=pvcAnnotations"`
 }
 
 // ServerConditionType describes the type of state of code server condition

@@ -6,14 +6,16 @@ spec:
   runtime: gotty
   url: codeserversample
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
-  volumeSize: "100m"
-  storageClassName: "standard"
+  volumeSize: "10Gi"
+  storageClassName: "csi-disk"
+  pvcAnnotations:
+    everest.io/disk-volume-type: SSD
   inactiveAfterSeconds: 60
   recycleAfterSeconds: 60
   workspaceLocation: "/workspace"
   envs:
     - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER
-      value: "true"
+      value: "false"
     - name: GOTTY_CREDENTIAL
       value: name:password
     - name: SHELL_USER
