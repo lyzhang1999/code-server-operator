@@ -596,7 +596,7 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
 	reqLogger := r.Log.WithValues("namespace", m.Namespace, "name", m.Name)
 	ls := labelsForCodeServer(m.Name)
-	baseCodeDir := "/workspace"
+	baseCodeDir := m.Spec.WorkspaceLocation
 	baseCodeVolume := "code-server-workspace"
 	replicas := int32(1)
 	enablePriviledge := m.Spec.Privileged

@@ -10,6 +10,7 @@ spec:
   storageClassName: "standard"
   inactiveAfterSeconds: 60
   recycleAfterSeconds: 60
+  workspaceLocation: "/workspace"
   port: 8080
   envs:
     - name: GOTTY_PORT

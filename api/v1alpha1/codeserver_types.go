@@ -75,6 +75,8 @@ type CodeServerSpec struct {
 	LivenessProbe *v1.Probe `json:"livenessProbe,omitempty" protobuf:"bytes,16,opt,name=livenessProbe"`
 	// Specifies the readiness Probe.
 	ReadinessProbe *v1.Probe `json:"readinessProbe,omitempty" protobuf:"bytes,17,opt,name=readinessProbe"`
+	// Specifies workspace location.
+	WorkspaceLocation string `json:"workspaceLocation,omitempty" protobuf:"bytes,18,opt,name=workspaceLocation"`
 }
 
 // ServerConditionType describes the type of state of code server condition

@@ -430,6 +430,9 @@ spec:
                 description: Specifies the volume size that will be used for code
                   server
                 type: string
+              workspaceLocation:
+                description: Specifies workspace location.
+                type: string
             type: object
           status:
             description: CodeServerStatus defines the observed state of CodeServer
