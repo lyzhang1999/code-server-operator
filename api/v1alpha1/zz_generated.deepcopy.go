@@ -98,11 +98,6 @@ func (in *CodeServerSpec) DeepCopyInto(out *CodeServerSpec) {
 		**out = **in
 	}
 	in.Resources.DeepCopyInto(&out.Resources)
-	if in.Port != nil {
-		in, out := &in.Port, &out.Port
-		*out = new(int32)
-		**out = **in
-	}
 	if in.Envs != nil {
 		in, out := &in.Envs, &out.Envs
 		*out = make([]v1.EnvVar, len(*in))

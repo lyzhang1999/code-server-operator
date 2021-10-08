@@ -11,10 +11,7 @@ spec:
   inactiveAfterSeconds: 60
   recycleAfterSeconds: 60
   workspaceLocation: "/workspace"
-  port: 8080
   envs:
-    - name: GOTTY_PORT
-      value: "8080"
     - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER
       value: "true"
     - name: GOTTY_CREDENTIAL

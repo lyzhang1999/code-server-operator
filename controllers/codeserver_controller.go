@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"strconv"
 	"strings"
 
 	csv1alpha1 "github.com/opensourceways/code-server-operator/api/v1alpha1"
@@ -49,6 +50,8 @@ const (
 	MaxKeepSeconds   = 60 * 60 * 24 * 30
 	CertFile         = "tls.crt"
 	CertKey          = "tls.key"
+	HttpPort         = 8080
+	HttpsPort        = 8443
 )
 
 // CodeServerReconciler reconciles a CodeServer object
@@ -542,7 +545,7 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 								},
 							},
 							Ports: []corev1.ContainerPort{{
-								ContainerPort: *m.Spec.Port,
+								ContainerPort: HttpPort,
 								Name:          "serverhttpport",
 							}},
 						},
@@ -640,10 +643,6 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 									Name:      baseCodeVolume,
 								},
 							},
-							Ports: []corev1.ContainerPort{{
-								ContainerPort: *m.Spec.Port,
-								Name:          "serverhttpport",
-							}},
 							Resources: m.Spec.Resources,
 						},
 					},
@@ -659,31 +658,35 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 			},
 		},
 	}
-
+	//https will be disabled no matter secret is provided or not. we only expose different port here.
 	if secret != nil {
-		reqLogger.Info(fmt.Sprintf("Found tls secret %s, will enable https for code server", secret.Name))
-		secretSource := corev1.SecretVolumeSource{
-			SecretName: r.Options.HttpsSecretName,
-		}
-		secretVolume := corev1.Volume{
-			Name: "code-server-secret-vol",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &secretSource,
-			},
-		}
-		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, secretVolume)
 		for index, con := range dep.Spec.Template.Spec.Containers {
-			if con.Name == CSNAME {
-				secretsArgument := []string{"--cert", fmt.Sprintf("/etc/config/csserver/%s", CertFile), "--cert-key", fmt.Sprintf("/etc/config/csserver/%s", CertKey)}
-				dep.Spec.Template.Spec.Containers[index].Args = append(dep.Spec.Template.Spec.Containers[index].Args, secretsArgument...)
-				newVolumeMounts := []corev1.VolumeMount{
-					{
-						MountPath: "/etc/config/csserver",
-						Name:      "code-server-secret-vol",
-					},
-				}
-				dep.Spec.Template.Spec.Containers[index].VolumeMounts = append(
-					dep.Spec.Template.Spec.Containers[index].VolumeMounts, newVolumeMounts...)
+			if con.Name == GOTTYNAME {
+				dep.Spec.Template.Spec.Containers[index].Env = append(
+					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
+						Name:  "GOTTY_PORT",
+						Value: strconv.Itoa(HttpsPort),
+					})
+				dep.Spec.Template.Spec.Containers[index].Ports = append(
+					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+						ContainerPort: HttpsPort,
+						Name:          "https",
+					})
+			}
+		}
+	} else {
+		for index, con := range dep.Spec.Template.Spec.Containers {
+			if con.Name == GOTTYNAME {
+				dep.Spec.Template.Spec.Containers[index].Env = append(
+					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
+						Name:  "GOTTY_PORT",
+						Value: strconv.Itoa(HttpPort),
+					})
+				dep.Spec.Template.Spec.Containers[index].Ports = append(
+					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+						ContainerPort: HttpPort,
+						Name:          "http",
+					})
 			}
 		}
 	}
@@ -706,17 +709,17 @@ func (r *CodeServerReconciler) serviceForCodeServer(m *csv1alpha1.CodeServer, se
 	}
 	if secret == nil {
 		ser.Spec.Ports = append(ser.Spec.Ports, corev1.ServicePort{
-			Port:       8080,
-			Name:       "web-ui",
+			Port:       HttpPort,
+			Name:       "http",
 			Protocol:   corev1.ProtocolTCP,
-			TargetPort: intstr.FromInt(int(*m.Spec.Port)),
+			TargetPort: intstr.FromInt(HttpPort),
 		})
 	} else {
 		ser.Spec.Ports = append(ser.Spec.Ports, corev1.ServicePort{
-			Port:       8443,
-			Name:       "web-ui",
+			Port:       HttpsPort,
+			Name:       "https",
 			Protocol:   corev1.ProtocolTCP,
-			TargetPort: intstr.FromInt(int(*m.Spec.Port)),
+			TargetPort: intstr.FromInt(HttpsPort),
 		})
 	}
 	// Set CodeServer instance as the owner of the Service.
@@ -760,9 +763,9 @@ func (r *CodeServerReconciler) getInstanceUrl(m *csv1alpha1.CodeServer) string {
 
 // ingressForCodeServer function takes in a CodeServer object and returns a ingress for that object.
 func (r *CodeServerReconciler) ingressForCodeServer(m *csv1alpha1.CodeServer, secret *corev1.Secret) *extv1.Ingress {
-	servicePort := intstr.FromInt(8080)
+	servicePort := intstr.FromInt(HttpPort)
 	if secret != nil {
-		servicePort = intstr.FromInt(8443)
+		servicePort = intstr.FromInt(HttpsPort)
 	}
 	httpValue := extv1.HTTPIngressRuleValue{
 		Paths: []extv1.HTTPIngressPath{
@@ -815,7 +818,8 @@ sub_filter '<head>' '<head> <base href="%s/">';`, r.getInstanceUrl(m))
 		"nginx.ingress.kubernetes.io/configuration-snippet": snippet,
 	}
 
-	if secret != nil {
+	// for the case of gotty we still use http for upstream connection
+	if secret != nil && m.Spec.Runtime != csv1alpha1.RuntimeGotty {
 		annotation["nginx.ingress.kubernetes.io/secure-backends"] = "true"
 		annotation["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
 	}

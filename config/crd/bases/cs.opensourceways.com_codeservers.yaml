@@ -276,11 +276,6 @@ spec:
                   type: string
                 description: Specifies the node selector for scheduling.
                 type: object
-              port:
-                description: Specifies the pod port that will be mapped to ingress
-                  backend
-                format: int32
-                type: integer
               privileged:
                 description: Whether to enable pod privileged
                 type: boolean
