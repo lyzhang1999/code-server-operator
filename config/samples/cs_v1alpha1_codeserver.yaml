@@ -6,12 +6,14 @@ spec:
   runtime: gotty
   url: codeserversample
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
-  volumeSize: "10Gi"
-  storageClassName: "csi-disk"
+  volumeSize: "100m" #"10Gi"
+  storageClassName: "standard" #"csi-disk"
+  ingressBandwidth: "10M"
+  egressBandwidth: "10M"
   pvcAnnotations:
     everest.io/disk-volume-type: SSD
-  inactiveAfterSeconds: 60
-  recycleAfterSeconds: 60
+  inactiveAfterSeconds: 12000
+  recycleAfterSeconds: 24000
   workspaceLocation: "/workspace"
   envs:
     - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER
@@ -33,4 +35,41 @@ spec:
   resources:
     requests:
       cpu: "1"
-
+---
+apiVersion: cs.opensourceways.com/v1alpha1
+kind: CodeServer
+metadata:
+  name: codeserver-sample2
+spec:
+  runtime: gotty
+  url: codeserversample2
+  image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
+  volumeSize: "100m"
+  storageClassName: "standard"
+  ingressBandwidth: "10M"
+  egressBandwidth: "10M"
+  pvcAnnotations:
+    everest.io/disk-volume-type: SSD
+  inactiveAfterSeconds: 12000
+  recycleAfterSeconds: 24000
+  workspaceLocation: "/workspace"
+  envs:
+    - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER
+      value: "false"
+    - name: GOTTY_CREDENTIAL
+      value: name:password
+    - name: SHELL_USER
+      value: tommylikehu
+    - name: COMMUNITY_EMAIL
+      value: contact@openeuler.io
+    - name: GOTTY_WS_ORIGIN
+      value: ".*"
+    - name: GOTTY_PERMIT_WRITE
+      value: "true"
+  args:
+    - zsh
+  connectProbe: "/active-time"
+  privileged: false
+  resources:
+    requests:
+      cpu: "1"

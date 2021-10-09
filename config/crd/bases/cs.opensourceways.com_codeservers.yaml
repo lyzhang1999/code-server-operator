@@ -46,6 +46,9 @@ spec:
                   Only http path are supported and time should be in the format of
                   2006-01-02T15:04:05.000Z.
                 type: string
+              egressBandwidth:
+                description: Specifies egress bandwith for code server
+                type: string
               envs:
                 description: Specifies the envs
                 items:
@@ -153,6 +156,9 @@ spec:
                   (delete all resources except volume).
                 format: int64
                 type: integer
+              ingressBandwidth:
+                description: Specifies ingress bandwith for code server
+                type: string
               initPlugins:
                 additionalProperties:
                   items:

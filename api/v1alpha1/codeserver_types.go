@@ -52,31 +52,35 @@ type CodeServerSpec struct {
 	RecycleAfterSeconds *int64 `json:"recycleAfterSeconds,omitempty" protobuf:"bytes,5,opt,name=recycleAfterSeconds"`
 	// Specifies the resource requirements for code server pod.
 	Resources v1.ResourceRequirements `json:"resources,omitempty" protobuf:"bytes,6,opt,name=resources"`
+	// Specifies ingress bandwith for code server
+	IngressBandwidth string `json:"ingressBandwidth,omitempty" protobuf:"bytes,7,opt,name=ingressBandwidth"`
+	// Specifies egress bandwith for code server
+	EgressBandwidth string `json:"egressBandwidth,omitempty" protobuf:"bytes,8,opt,name=egressBandwidth"`
 	// Specifies the url for pod visiting
-	URL string `json:"url,omitempty" protobuf:"bytes,7,opt,name=url"`
+	URL string `json:"url,omitempty" protobuf:"bytes,9,opt,name=url"`
 	// Specifies the envs
-	Envs []v1.EnvVar `json:"envs,omitempty" protobuf:"bytes,8,opt,name=envs"`
+	Envs []v1.EnvVar `json:"envs,omitempty" protobuf:"bytes,10,opt,name=envs"`
 	// Specifies the envs
-	Args []string `json:"args,omitempty" protobuf:"bytes,9,opt,name=args"`
+	Args []string `json:"args,omitempty" protobuf:"bytes,11,opt,name=args"`
 	// Specifies the image used to running code server
-	Image string `json:"image,omitempty" protobuf:"bytes,10,opt,name=image"`
+	Image string `json:"image,omitempty" protobuf:"bytes,12,opt,name=image"`
 	// Specifies the alive probe to detect whether pod is connected. Only http path are supported and time should be in
 	// the format of 2006-01-02T15:04:05.000Z.
-	ConnectProbe string `json:"connectProbe,omitempty" protobuf:"bytes,11,opt,name=connectProbe"`
+	ConnectProbe string `json:"connectProbe,omitempty" protobuf:"bytes,13,opt,name=connectProbe"`
 	// Whether to enable pod privileged
-	Privileged *bool `json:"privileged,omitempty" protobuf:"bytes,12,opt,name=privileged"`
+	Privileged *bool `json:"privileged,omitempty" protobuf:"bytes,14,opt,name=privileged"`
 	// Specifies the init plugins that will be running to finish before code server running.
-	InitPlugins map[string][]string `json:"initPlugins,omitempty" protobuf:"bytes,13,opt,name=initPlugins"`
+	InitPlugins map[string][]string `json:"initPlugins,omitempty" protobuf:"bytes,15,opt,name=initPlugins"`
 	// Specifies the node selector for scheduling.
-	NodeSelector map[string]string `json:"nodeSelector,omitempty" protobuf:"bytes,14,opt,name=nodeSelector"`
+	NodeSelector map[string]string `json:"nodeSelector,omitempty" protobuf:"bytes,16,opt,name=nodeSelector"`
 	// Specifies the liveness Probe.
-	LivenessProbe *v1.Probe `json:"livenessProbe,omitempty" protobuf:"bytes,15,opt,name=livenessProbe"`
+	LivenessProbe *v1.Probe `json:"livenessProbe,omitempty" protobuf:"bytes,17,opt,name=livenessProbe"`
 	// Specifies the readiness Probe.
-	ReadinessProbe *v1.Probe `json:"readinessProbe,omitempty" protobuf:"bytes,16,opt,name=readinessProbe"`
+	ReadinessProbe *v1.Probe `json:"readinessProbe,omitempty" protobuf:"bytes,18,opt,name=readinessProbe"`
 	// Specifies workspace location.
-	WorkspaceLocation string `json:"workspaceLocation,omitempty" protobuf:"bytes,17,opt,name=workspaceLocation"`
+	WorkspaceLocation string `json:"workspaceLocation,omitempty" protobuf:"bytes,19,opt,name=workspaceLocation"`
 	// Specifies the additional annotations for persistent volume claim
-	PVCAnnotations map[string]string `json:"pvcAnnotations,omitempty" protobuf:"bytes,18,opt,name=pvcAnnotations"`
+	PVCAnnotations map[string]string `json:"pvcAnnotations,omitempty" protobuf:"bytes,19,opt,name=pvcAnnotations"`
 }
 
 // ServerConditionType describes the type of state of code server condition

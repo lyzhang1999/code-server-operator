@@ -51,6 +51,8 @@ const (
 	CertKey          = "tls.key"
 	HttpPort         = 8080
 	HttpsPort        = 8443
+	IngressLimitKey  = "kubernetes.io/ingress-bandwidth"
+	EgressLimitKey   = "kubernetes.io/egress-bandwidth"
 )
 
 // CodeServerReconciler reconciles a CodeServer object
@@ -690,6 +692,14 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 			}
 		}
 	}
+	// Append ingress and egress limit
+	dep.Spec.Template.Annotations = map[string]string{}
+	if len(m.Spec.IngressBandwidth) != 0 {
+		dep.Spec.Template.Annotations[IngressLimitKey] = m.Spec.IngressBandwidth
+	}
+	if len(m.Spec.EgressBandwidth) != 0 {
+		dep.Spec.Template.Annotations[EgressLimitKey] = m.Spec.EgressBandwidth
+	}
 	// Set CodeServer instance as the owner of the Deployment.
 	controllerutil.SetControllerReference(m, dep, r.Scheme)
 	return dep
@@ -735,8 +745,8 @@ func (r *CodeServerReconciler) pvcForCodeServer(m *csv1alpha1.CodeServer) (*core
 	}
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      m.Name,
-			Namespace: m.Namespace,
+			Name:        m.Name,
+			Namespace:   m.Namespace,
 			Annotations: m.Spec.PVCAnnotations,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
