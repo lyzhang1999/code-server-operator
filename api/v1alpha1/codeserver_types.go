@@ -44,17 +44,17 @@ type CodeServerSpec struct {
 	Runtime RuntimeType `json:"runtime,omitempty" protobuf:"bytes,1,opt,name=runtime"`
 	// Specifies the volume size that will be used for code server
 	VolumeSize string `json:"volumeSize,omitempty" protobuf:"bytes,2,opt,name=volumeSize"`
-	// Specifies the storage class name for the persistent volume
-	StorageClassName string `json:"storageClassName,omitempty" protobuf:"bytes,3,opt,name=storageClassName"`
+	// Specifies the storage name for the workspace volume could be pvc name or emptyDir
+	StorageName string `json:"storageName,omitempty" protobuf:"bytes,3,opt,name=storageName"`
 	// Specifies the period before controller inactive the resource (delete all resources except volume).
 	InactiveAfterSeconds *int64 `json:"inactiveAfterSeconds,omitempty" protobuf:"bytes,4,opt,name=inactiveAfterSeconds"`
 	// Specifies the period before controller recycle the resource (delete all resources).
 	RecycleAfterSeconds *int64 `json:"recycleAfterSeconds,omitempty" protobuf:"bytes,5,opt,name=recycleAfterSeconds"`
 	// Specifies the resource requirements for code server pod.
 	Resources v1.ResourceRequirements `json:"resources,omitempty" protobuf:"bytes,6,opt,name=resources"`
-	// Specifies ingress bandwith for code server
+	// Specifies ingress bandwidth for code server
 	IngressBandwidth string `json:"ingressBandwidth,omitempty" protobuf:"bytes,7,opt,name=ingressBandwidth"`
-	// Specifies egress bandwith for code server
+	// Specifies egress bandwidth for code server
 	EgressBandwidth string `json:"egressBandwidth,omitempty" protobuf:"bytes,8,opt,name=egressBandwidth"`
 	// Specifies the url for pod visiting
 	URL string `json:"url,omitempty" protobuf:"bytes,9,opt,name=url"`
@@ -80,7 +80,7 @@ type CodeServerSpec struct {
 	// Specifies workspace location.
 	WorkspaceLocation string `json:"workspaceLocation,omitempty" protobuf:"bytes,19,opt,name=workspaceLocation"`
 	// Specifies the additional annotations for persistent volume claim
-	PVCAnnotations map[string]string `json:"pvcAnnotations,omitempty" protobuf:"bytes,19,opt,name=pvcAnnotations"`
+	StorageAnnotations map[string]string `json:"storageAnnotations,omitempty" protobuf:"bytes,19,opt,name=storageAnnotations"`
 }
 
 // ServerConditionType describes the type of state of code server condition

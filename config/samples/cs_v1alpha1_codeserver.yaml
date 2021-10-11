@@ -7,11 +7,11 @@ spec:
   url: codeserversample
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
   volumeSize: "100m" #"10Gi"
-  storageClassName: "standard" #"csi-disk"
+  storageName: "standard" #"csi-disk"
+  storageAnnotations:
+    everest.io/disk-volume-type: SSD
   ingressBandwidth: "10M"
   egressBandwidth: "10M"
-  pvcAnnotations:
-    everest.io/disk-volume-type: SSD
   inactiveAfterSeconds: 12000
   recycleAfterSeconds: 24000
   workspaceLocation: "/workspace"
@@ -45,11 +45,11 @@ spec:
   url: codeserversample2
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
   volumeSize: "100m"
-  storageClassName: "standard"
+  storageName: "standard"
+  storageAnnotations:
+    everest.io/disk-volume-type: SSD
   ingressBandwidth: "10M"
   egressBandwidth: "10M"
-  pvcAnnotations:
-    everest.io/disk-volume-type: SSD
   inactiveAfterSeconds: 12000
   recycleAfterSeconds: 24000
   workspaceLocation: "/workspace"

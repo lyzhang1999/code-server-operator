@@ -47,7 +47,7 @@ spec:
                   2006-01-02T15:04:05.000Z.
                 type: string
               egressBandwidth:
-                description: Specifies egress bandwith for code server
+                description: Specifies egress bandwidth for code server
                 type: string
               envs:
                 description: Specifies the envs
@@ -157,7 +157,7 @@ spec:
                 format: int64
                 type: integer
               ingressBandwidth:
-                description: Specifies ingress bandwith for code server
+                description: Specifies ingress bandwidth for code server
                 type: string
               initPlugins:
                 additionalProperties:
@@ -285,12 +285,6 @@ spec:
               privileged:
                 description: Whether to enable pod privileged
                 type: boolean
-              pvcAnnotations:
-                additionalProperties:
-                  type: string
-                description: Specifies the additional annotations for persistent volume
-                  claim
-                type: object
               readinessProbe:
                 description: Specifies the readiness Probe.
                 properties:
@@ -427,8 +421,15 @@ spec:
               runtime:
                 description: Specifies the runtime used for pod boostrap
                 type: string
-              storageClassName:
-                description: Specifies the storage class name for the persistent volume
+              storageAnnotations:
+                additionalProperties:
+                  type: string
+                description: Specifies the additional annotations for persistent volume
+                  claim
+                type: object
+              storageName:
+                description: Specifies the storage name for the workspace volume could
+                  be pvc name or emptyDir
                 type: string
               url:
                 description: Specifies the url for pod visiting

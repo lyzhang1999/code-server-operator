@@ -147,8 +147,8 @@ func (in *CodeServerSpec) DeepCopyInto(out *CodeServerSpec) {
 		*out = new(v1.Probe)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.PVCAnnotations != nil {
-		in, out := &in.PVCAnnotations, &out.PVCAnnotations
+	if in.StorageAnnotations != nil {
+		in, out := &in.StorageAnnotations, &out.StorageAnnotations
 		*out = make(map[string]string, len(*in))
 		for key, val := range *in {
 			(*out)[key] = val
