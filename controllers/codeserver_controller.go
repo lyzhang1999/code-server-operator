@@ -53,6 +53,7 @@ const (
 	HttpsPort        = 8443
 	IngressLimitKey  = "kubernetes.io/ingress-bandwidth"
 	EgressLimitKey   = "kubernetes.io/egress-bandwidth"
+	StorageEmptyDir  = "emptyDir"
 )
 
 // CodeServerReconciler reconciles a CodeServer object
@@ -84,7 +85,8 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			reqLogger.Info("CodeServer has been deleted. Trying to delete its related resources.")
 			r.deleteFromInactiveWatch(req.NamespacedName)
 			r.deleteFromRecycleWatch(req.NamespacedName)
-			if err := r.deleteCodeServerResource(req.Name, req.Namespace, true); err != nil {
+			if err := r.deleteCodeServerResource(req.Name, req.Namespace, codeServer.Spec.StorageName,
+				true); err != nil {
 				return reconcile.Result{Requeue: true}, err
 			}
 			return reconcile.Result{}, nil
@@ -109,7 +111,8 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				*codeServer.Spec.RecycleAfterSeconds))
 			r.addToRecycleWatch(req.NamespacedName, *codeServer.Spec.RecycleAfterSeconds, inActiveCondition.LastTransitionTime)
 		}
-		if err := r.deleteCodeServerResource(codeServer.Name, codeServer.Namespace, false); err != nil {
+		if err := r.deleteCodeServerResource(codeServer.Name, codeServer.Namespace, codeServer.Spec.StorageName,
+			false); err != nil {
 			return reconcile.Result{Requeue: true}, err
 		}
 		//code server now stays recycled, we will delete all resources
@@ -117,14 +120,17 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		//remove it from watch list
 		r.deleteFromInactiveWatch(req.NamespacedName)
 		r.deleteFromRecycleWatch(req.NamespacedName)
-		if err := r.deleteCodeServerResource(codeServer.Name, codeServer.Namespace, true); err != nil {
+		if err := r.deleteCodeServerResource(codeServer.Name, codeServer.Namespace, codeServer.Spec.StorageName,
+			true); err != nil {
 			return reconcile.Result{Requeue: true}, err
 		}
 	} else {
 		// 0/5 check whether we need enable https
 		tlsSecret := r.findLegalCertSecrets(codeServer)
 		// 1/5: reconcile PVC
-		_, err = r.reconcileForPVC(codeServer)
+		if r.needDeployPVC(codeServer.Spec.StorageName) {
+			_, err = r.reconcileForPVC(codeServer)
+		}
 		if err != nil {
 			return reconcile.Result{Requeue: true}, err
 		}
@@ -254,7 +260,7 @@ func (r *CodeServerReconciler) deleteFromRecycleWatch(resource types.NamespacedN
 	r.ReqCh <- request
 }
 
-func (r *CodeServerReconciler) deleteCodeServerResource(name, namespace string, includePVC bool) error {
+func (r *CodeServerReconciler) deleteCodeServerResource(name, namespace string, storageName string, includePVC bool) error {
 	reqLogger := r.Log.WithValues("namespace", name, "name", namespace)
 	reqLogger.Info("Deleting code server resources.")
 	//delete ingress
@@ -296,7 +302,7 @@ func (r *CodeServerReconciler) deleteCodeServerResource(name, namespace string, 
 	} else if !errors.IsNotFound(err) {
 		reqLogger.Info(fmt.Sprintf("failed to get development resource for deletion: %v", err))
 	}
-	if includePVC {
+	if includePVC && r.needDeployPVC(storageName) {
 		//delete pvc
 		pvc := &corev1.PersistentVolumeClaim{}
 		err = r.Client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, pvc)
@@ -608,9 +614,6 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 	priviledged := corev1.SecurityContext{
 		Privileged: enablePriviledge,
 	}
-	dataVolume := corev1.PersistentVolumeClaimVolumeSource{
-		ClaimName: m.Name,
-	}
 	initContainer := r.addInitContainersForDeployment(m, baseCodeDir, baseCodeVolume)
 	reqLogger.Info(fmt.Sprintf("init containers has been injected into deployment %v", initContainer))
 
@@ -648,17 +651,32 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 							Resources: m.Spec.Resources,
 						},
 					},
-					Volumes: []corev1.Volume{
-						{
-							Name: baseCodeVolume,
-							VolumeSource: corev1.VolumeSource{
-								PersistentVolumeClaim: &dataVolume,
-							},
-						},
-					},
 				},
 			},
 		},
+	}
+	// add volume pvc pr emptyDir
+	if r.needDeployPVC(m.Spec.StorageName) {
+		dataVolume := corev1.PersistentVolumeClaimVolumeSource{
+			ClaimName: m.Name,
+		}
+		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: baseCodeVolume,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &dataVolume,
+			},
+		})
+	} else {
+		volumeQuantity, _ := resourcev1.ParseQuantity(m.Spec.StorageSize)
+		dataVolume := corev1.EmptyDirVolumeSource{
+			SizeLimit: &volumeQuantity,
+		}
+		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: baseCodeVolume,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &dataVolume,
+			},
+		})
 	}
 	//https will be disabled no matter secret is provided or not. we only expose different port here.
 	if secret != nil {
@@ -737,9 +755,16 @@ func (r *CodeServerReconciler) serviceForCodeServer(m *csv1alpha1.CodeServer, se
 	return ser
 }
 
+func (r *CodeServerReconciler) needDeployPVC(storageName string) bool {
+	if storageName == StorageEmptyDir {
+		return false
+	}
+	return true
+}
+
 // pvcForCodeServer function takes in a CodeServer object and returns a PersistentVolumeClaim for that object.
 func (r *CodeServerReconciler) pvcForCodeServer(m *csv1alpha1.CodeServer) (*corev1.PersistentVolumeClaim, error) {
-	pvcQuantity, err := resourcev1.ParseQuantity(m.Spec.VolumeSize)
+	pvcQuantity, err := resourcev1.ParseQuantity(m.Spec.StorageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -747,7 +772,7 @@ func (r *CodeServerReconciler) pvcForCodeServer(m *csv1alpha1.CodeServer) (*core
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        m.Name,
 			Namespace:   m.Namespace,
-			Annotations: m.Spec.PVCAnnotations,
+			Annotations: m.Spec.StorageAnnotations,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},

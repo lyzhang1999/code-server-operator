@@ -6,7 +6,7 @@ spec:
   runtime: gotty
   url: codeserversample
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
-  volumeSize: "100m" #"10Gi"
+  storageSize: "100m" #"10Gi"
   storageName: "standard" #"csi-disk"
   storageAnnotations:
     everest.io/disk-volume-type: SSD
@@ -44,7 +44,7 @@ spec:
   runtime: gotty
   url: codeserversample2
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
-  volumeSize: "100m"
+  storageSize: "100m"
   storageName: "standard"
   storageAnnotations:
     everest.io/disk-volume-type: SSD
