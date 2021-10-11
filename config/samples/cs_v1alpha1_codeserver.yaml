@@ -4,10 +4,10 @@ metadata:
   name: codeserver-sample
 spec:
   runtime: gotty
-  url: codeserversample
+  url: codeserverzhangjianjun
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
-  storageSize: "100m" #"10Gi"
-  storageName: "standard" #"csi-disk"
+  storageSize: "100Mi" #"10Gi"
+  storageName: "emptyDir" #"csi-disk"
   storageAnnotations:
     everest.io/disk-volume-type: SSD
   ingressBandwidth: "10M"
@@ -21,7 +21,7 @@ spec:
     - name: GOTTY_CREDENTIAL
       value: name:password
     - name: SHELL_USER
-      value: tommylikehu
+      value: zhangjianjun
     - name: COMMUNITY_EMAIL
       value: contact@openeuler.io
     - name: GOTTY_WS_ORIGIN
@@ -42,10 +42,10 @@ metadata:
   name: codeserver-sample2
 spec:
   runtime: gotty
-  url: codeserversample2
+  url: codeserverhusheng
   image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
-  storageSize: "100m"
-  storageName: "standard"
+  storageSize: "100Mi"
+  storageName: "emptyDir"
   storageAnnotations:
     everest.io/disk-volume-type: SSD
   ingressBandwidth: "10M"
@@ -59,7 +59,7 @@ spec:
     - name: GOTTY_CREDENTIAL
       value: name:password
     - name: SHELL_USER
-      value: tommylikehu
+      value: husheng
     - name: COMMUNITY_EMAIL
       value: contact@openeuler.io
     - name: GOTTY_WS_ORIGIN
