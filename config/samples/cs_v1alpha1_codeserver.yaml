@@ -4,10 +4,10 @@ metadata:
   name: codeserver-sample
 spec:
   runtime: gotty
-  url: codeserverzhangjianjun
-  image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
-  storageSize: "100Mi" #"10Gi"
-  storageName: "emptyDir" #"csi-disk"
+  subdomain: codeserverzhangjianjun
+  image: "opensourceway/openeuler-20.03-lts-sp1-base:latest@sha256:4e94a5b8e3636df00eebb042e43c1941dc46c9395cce54f96e414bee0eab3c57"
+  storageSize: "100Mi"
+  storageName: "emptyDir"
   storageAnnotations:
     everest.io/disk-volume-type: SSD
   ingressBandwidth: "10M"
@@ -22,6 +22,8 @@ spec:
       value: name:password
     - name: SHELL_USER
       value: zhangjianjun
+    - name: GOTTY_MAX_CONNECTION
+      value: "10"
     - name: COMMUNITY_EMAIL
       value: contact@openeuler.io
     - name: GOTTY_WS_ORIGIN
@@ -42,8 +44,8 @@ metadata:
   name: codeserver-sample2
 spec:
   runtime: gotty
-  url: codeserverhusheng
-  image: "opensourceway/openeuler-20.03-lts-sp1-base:latest"
+  subdomain: codeserverhusheng
+  image: "opensourceway/openeuler-20.03-lts-sp1-base:latest@sha256:4e94a5b8e3636df00eebb042e43c1941dc46c9395cce54f96e414bee0eab3c57"
   storageSize: "100Mi"
   storageName: "emptyDir"
   storageAnnotations:
@@ -60,6 +62,8 @@ spec:
       value: name:password
     - name: SHELL_USER
       value: husheng
+    - name: GOTTY_MAX_CONNECTION
+      value: "10"
     - name: COMMUNITY_EMAIL
       value: contact@openeuler.io
     - name: GOTTY_WS_ORIGIN

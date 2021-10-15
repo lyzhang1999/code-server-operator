@@ -435,8 +435,8 @@ spec:
                 description: Specifies the storage size that will be used for code
                   server
                 type: string
-              url:
-                description: Specifies the url for pod visiting
+              subdomain:
+                description: Specifies the subdomain for pod visiting
                 type: string
               workspaceLocation:
                 description: Specifies workspace location.

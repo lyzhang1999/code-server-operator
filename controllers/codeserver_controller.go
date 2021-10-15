@@ -54,6 +54,7 @@ const (
 	IngressLimitKey  = "kubernetes.io/ingress-bandwidth"
 	EgressLimitKey   = "kubernetes.io/egress-bandwidth"
 	StorageEmptyDir  = "emptyDir"
+	DefaultPrefix    = "instances"
 )
 
 // CodeServerReconciler reconciles a CodeServer object
@@ -791,9 +792,10 @@ func (r *CodeServerReconciler) pvcForCodeServer(m *csv1alpha1.CodeServer) (*core
 
 func (r *CodeServerReconciler) getInstanceUrl(m *csv1alpha1.CodeServer) string {
 	if len(r.Options.UrlPrefix) == 0 {
-		return fmt.Sprintf("/%s", strings.Trim(m.Spec.URL, "/"))
+		//use the default prefix here. we need url prefix no matter it's configured or not
+		return fmt.Sprintf("/%s", DefaultPrefix)
 	} else {
-		return fmt.Sprintf("/%s/%s", strings.Trim(r.Options.UrlPrefix, "/"), strings.Trim(m.Spec.URL, "/"))
+		return fmt.Sprintf("/%s", strings.Trim(r.Options.UrlPrefix, "/"))
 	}
 }
 
@@ -823,7 +825,7 @@ func (r *CodeServerReconciler) ingressForCodeServer(m *csv1alpha1.CodeServer, se
 		Spec: extv1.IngressSpec{
 			Rules: []extv1.IngressRule{
 				{
-					Host: r.Options.DomainName,
+					Host: fmt.Sprintf("%s.%s", m.Spec.Subdomain, r.Options.DomainName),
 					IngressRuleValue: extv1.IngressRuleValue{
 						HTTP: &httpValue,
 					},

@@ -60,8 +60,8 @@ type CodeServerSpec struct {
 	InactiveAfterSeconds *int64 `json:"inactiveAfterSeconds,omitempty" protobuf:"bytes,9,opt,name=inactiveAfterSeconds"`
 	// Specifies the period before controller recycle the resource (delete all resources).
 	RecycleAfterSeconds *int64 `json:"recycleAfterSeconds,omitempty" protobuf:"bytes,10,opt,name=recycleAfterSeconds"`
-	// Specifies the url for pod visiting
-	URL string `json:"url,omitempty" protobuf:"bytes,11,opt,name=url"`
+	// Specifies the subdomain for pod visiting
+	Subdomain string `json:"subdomain,omitempty" protobuf:"bytes,11,opt,name=subdomain"`
 	// Specifies the envs
 	Envs []v1.EnvVar `json:"envs,omitempty" protobuf:"bytes,12,opt,name=envs"`
 	// Specifies the envs
