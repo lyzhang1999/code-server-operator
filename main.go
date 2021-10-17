@@ -75,7 +75,7 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&csOption.DomainName, "domain-name", "playground.osinfra.cn", "Code server domain name.")
+	flag.StringVar(&csOption.DomainName, "domain-name", "pool1.playground.osinfra.cn", "Code server domain name.")
 	flag.StringVar(&csOption.VSExporterImage, "vs-default-exporter", "opensourceway/active-exporter-x86:stable",
 		"Default exporter image used as a code server sidecar for VS code instance.")
 	flag.IntVar(&csOption.ProbeInterval, "probe-interval", 20,
@@ -83,7 +83,7 @@ func main() {
 	flag.IntVar(&csOption.MaxProbeRetry, "max-probe-retry", 10,
 		"count before marking code server inactive when failed to probe liveness")
 	flag.StringVar(&csOption.HttpsSecretName, "secrets-name", "code-server-secret", "Secret which holds the https cert(tls.crt) and key file(tls.key). This secret will be used in ingress controller as well as code server instance.")
-	flag.StringVar(&csOption.UrlPrefix, "url-prefix", "instances", "Url prefix added before instance url.")
+	flag.StringVar(&csOption.UrlPrefix, "url-prefix", "terminal", "Url prefix added before instance url.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {

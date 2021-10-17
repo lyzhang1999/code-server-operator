@@ -54,7 +54,7 @@ const (
 	IngressLimitKey  = "kubernetes.io/ingress-bandwidth"
 	EgressLimitKey   = "kubernetes.io/egress-bandwidth"
 	StorageEmptyDir  = "emptyDir"
-	DefaultPrefix    = "instances"
+	DefaultPrefix    = "terminal"
 )
 
 // CodeServerReconciler reconciles a CodeServer object
