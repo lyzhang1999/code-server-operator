@@ -461,9 +461,11 @@ spec:
                       format: date-time
                       type: string
                     message:
+                      additionalProperties:
+                        type: string
                       description: A human readable message indicating details about
                         the transition.
-                      type: string
+                      type: object
                     reason:
                       description: The reason for the condition's last transition.
                       type: string

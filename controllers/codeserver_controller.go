@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"strconv"
 	"strings"
+	"time"
 
 	csv1alpha1 "github.com/opensourceways/code-server-operator/api/v1alpha1"
 )
@@ -55,6 +56,7 @@ const (
 	EgressLimitKey   = "kubernetes.io/egress-bandwidth"
 	StorageEmptyDir  = "emptyDir"
 	DefaultPrefix    = "terminal"
+	InstanceEndpoint = "instanceEndpoint"
 )
 
 // CodeServerReconciler reconciles a CodeServer object
@@ -97,7 +99,11 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		return reconcile.Result{}, err
 	}
 
-	//code server now stays inactive, we will delete all resources except volume
+	//case1. code server now stays inactive, we will delete all resources except volume.
+	//case2. code server will be directly deleted after RecycleAfterSeconds if.
+	//       InactiveAfterSeconds are configured with zero.
+	//case3. code server now stays recycled, we will delete all resources.
+	//case4. reconcile the code server.
 	if HasCondition(codeServer.Status, csv1alpha1.ServerInactive) && !HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) {
 		//remove it from watch list and add it to recycle watch
 		r.deleteFromInactiveWatch(req.NamespacedName)
@@ -116,8 +122,21 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			false); err != nil {
 			return reconcile.Result{Requeue: true}, err
 		}
-		//code server now stays recycled, we will delete all resources
-	} else if HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) {
+	} else if !HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) && *codeServer.Spec.InactiveAfterSeconds == 0 {
+		current := metav1.Time{
+			time.Now(),
+		}
+		if (codeServer.Spec.RecycleAfterSeconds == nil) || *codeServer.Spec.RecycleAfterSeconds <= 0 || *codeServer.Spec.RecycleAfterSeconds >= MaxKeepSeconds {
+			// we keep the instance within MaxKeepSeconds maximumly
+			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d inactive.",
+				MaxKeepSeconds))
+			r.addToRecycleWatch(req.NamespacedName, MaxKeepSeconds, current)
+		} else {
+			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d inactive.",
+				*codeServer.Spec.RecycleAfterSeconds))
+			r.addToRecycleWatch(req.NamespacedName, *codeServer.Spec.RecycleAfterSeconds, current)
+		}
+	}else if HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) {
 		//remove it from watch list
 		r.deleteFromInactiveWatch(req.NamespacedName)
 		r.deleteFromRecycleWatch(req.NamespacedName)
@@ -153,15 +172,19 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		// 5/5: update code server status
 		if !HasCondition(codeServer.Status, csv1alpha1.ServerCreated) {
 			createdCondition := NewStateCondition(csv1alpha1.ServerCreated,
-				"code server has been accepted", "")
+				"code server has been accepted", map[string]string{})
 			SetCondition(&codeServer.Status, createdCondition)
 		}
 		readyCondition := NewStateCondition(csv1alpha1.ServerReady,
-			"code server now available", "")
+			"code server now available", map[string]string{})
 		if !HasDeploymentCondition(dep.Status, appsv1.DeploymentAvailable) {
 			readyCondition.Status = corev1.ConditionFalse
 			readyCondition.Reason = "waiting deployment to be available"
 		} else {
+			//add instance endpoint
+			readyCondition.Message[InstanceEndpoint] = fmt.Sprintf("https://%s.%s/instances/ws",
+				codeServer.Spec.Subdomain,
+				r.Options.DomainName)
 			//add it to watch list
 			var endPoint string
 			// only port differs, since no matter tls is enabled or nor we both expose upstream via http
@@ -872,7 +895,7 @@ func labelsForCodeServer(name string) map[string]string {
 }
 
 // NewStateCondition creates a new code server condition.
-func NewStateCondition(conditionType csv1alpha1.ServerConditionType, reason, message string) csv1alpha1.ServerCondition {
+func NewStateCondition(conditionType csv1alpha1.ServerConditionType, reason string, message map[string]string) csv1alpha1.ServerCondition {
 	return csv1alpha1.ServerCondition{
 		Type:               conditionType,
 		Status:             corev1.ConditionTrue,
