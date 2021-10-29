@@ -12,8 +12,8 @@ spec:
     everest.io/disk-volume-type: SSD
   ingressBandwidth: "10M"
   egressBandwidth: "10M"
-  inactiveAfterSeconds: 12000
-  recycleAfterSeconds: 24000
+  inactiveAfterSeconds: 0
+  recycleAfterSeconds: 1200
   workspaceLocation: "/workspace"
   envs:
     - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER

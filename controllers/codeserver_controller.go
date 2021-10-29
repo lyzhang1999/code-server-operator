@@ -110,11 +110,11 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		inActiveCondition := GetCondition(codeServer.Status, csv1alpha1.ServerInactive)
 		if (codeServer.Spec.RecycleAfterSeconds == nil) || *codeServer.Spec.RecycleAfterSeconds <= 0 || *codeServer.Spec.RecycleAfterSeconds >= MaxKeepSeconds {
 			// we keep the instance within MaxKeepSeconds maximumly
-			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d inactive.",
+			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d seconds.",
 				MaxKeepSeconds))
 			r.addToRecycleWatch(req.NamespacedName, MaxKeepSeconds, inActiveCondition.LastTransitionTime)
 		} else {
-			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d inactive.",
+			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d seconds.",
 				*codeServer.Spec.RecycleAfterSeconds))
 			r.addToRecycleWatch(req.NamespacedName, *codeServer.Spec.RecycleAfterSeconds, inActiveCondition.LastTransitionTime)
 		}
@@ -129,11 +129,11 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		}
 		if (codeServer.Spec.RecycleAfterSeconds == nil) || *codeServer.Spec.RecycleAfterSeconds <= 0 || *codeServer.Spec.RecycleAfterSeconds >= MaxKeepSeconds {
 			// we keep the instance within MaxKeepSeconds maximumly
-			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d inactive.",
+			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d seconds.",
 				MaxKeepSeconds))
 			r.addToRecycleWatch(req.NamespacedName, MaxKeepSeconds, current)
 		} else {
-			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d inactive.",
+			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d seconds.",
 				*codeServer.Spec.RecycleAfterSeconds))
 			r.addToRecycleWatch(req.NamespacedName, *codeServer.Spec.RecycleAfterSeconds, current)
 		}
