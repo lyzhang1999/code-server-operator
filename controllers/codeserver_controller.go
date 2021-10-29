@@ -122,7 +122,8 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			false); err != nil {
 			return reconcile.Result{Requeue: true}, err
 		}
-	} else if !HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) && *codeServer.Spec.InactiveAfterSeconds == 0 {
+	} else if !HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) &&
+		*codeServer.Spec.InactiveAfterSeconds == 0 && HasCondition(codeServer.Status, csv1alpha1.ServerReady) {
 		current := metav1.Time{
 			time.Now(),
 		}
@@ -182,9 +183,9 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			readyCondition.Reason = "waiting deployment to be available"
 		} else {
 			//add instance endpoint
-			readyCondition.Message[InstanceEndpoint] = fmt.Sprintf("https://%s.%s/instances/ws",
+			readyCondition.Message[InstanceEndpoint] = fmt.Sprintf("https://%s.%s/%s/ws",
 				codeServer.Spec.Subdomain,
-				r.Options.DomainName)
+				r.Options.DomainName, DefaultPrefix)
 			//add it to watch list
 			var endPoint string
 			// only port differs, since no matter tls is enabled or nor we both expose upstream via http
