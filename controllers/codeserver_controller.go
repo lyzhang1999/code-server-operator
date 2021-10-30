@@ -125,7 +125,7 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	} else if !HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) &&
 		*codeServer.Spec.InactiveAfterSeconds == 0 && HasCondition(codeServer.Status, csv1alpha1.ServerReady) {
 		current := metav1.Time{
-			time.Now(),
+			Time: time.Now(),
 		}
 		if (codeServer.Spec.RecycleAfterSeconds == nil) || *codeServer.Spec.RecycleAfterSeconds <= 0 || *codeServer.Spec.RecycleAfterSeconds >= MaxKeepSeconds {
 			// we keep the instance within MaxKeepSeconds maximumly
@@ -137,7 +137,7 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				*codeServer.Spec.RecycleAfterSeconds))
 			r.addToRecycleWatch(req.NamespacedName, *codeServer.Spec.RecycleAfterSeconds, current)
 		}
-	}else if HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) {
+	} else if HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) {
 		//remove it from watch list
 		r.deleteFromInactiveWatch(req.NamespacedName)
 		r.deleteFromRecycleWatch(req.NamespacedName)
@@ -146,29 +146,27 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			return reconcile.Result{Requeue: true}, err
 		}
 	} else {
+		var failed error
+		var service *corev1.Service
+		var deployment *appsv1.Deployment
+		var conditon csv1alpha1.ServerCondition
 		// 0/5 check whether we need enable https
 		tlsSecret := r.findLegalCertSecrets(codeServer)
 		// 1/5: reconcile PVC
 		if r.needDeployPVC(codeServer.Spec.StorageName) {
-			_, err = r.reconcileForPVC(codeServer)
-		}
-		if err != nil {
-			return reconcile.Result{Requeue: true}, err
+			_, failed = r.reconcileForPVC(codeServer)
 		}
 		// 2/5: reconcile service
-		service, err := r.reconcileForService(codeServer, tlsSecret)
-		if err != nil {
-			return reconcile.Result{Requeue: true}, err
+		if failed == nil {
+			service, failed = r.reconcileForService(codeServer, tlsSecret)
 		}
 		// 3/5:reconcile ingress
-		_, err = r.reconcileForIngress(codeServer, tlsSecret)
-		if err != nil {
-			return reconcile.Result{Requeue: true}, err
+		if failed == nil {
+			_, failed = r.reconcileForIngress(codeServer, tlsSecret)
 		}
 		// 4/5: reconcile deployment
-		dep, err := r.reconcileForDeployment(codeServer, tlsSecret)
-		if err != nil {
-			return reconcile.Result{Requeue: true}, err
+		if failed == nil {
+			deployment, failed = r.reconcileForDeployment(codeServer, tlsSecret)
 		}
 		// 5/5: update code server status
 		if !HasCondition(codeServer.Status, csv1alpha1.ServerCreated) {
@@ -176,43 +174,48 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				"code server has been accepted", map[string]string{})
 			SetCondition(&codeServer.Status, createdCondition)
 		}
-		readyCondition := NewStateCondition(csv1alpha1.ServerReady,
-			"code server now available", map[string]string{})
-		if !HasDeploymentCondition(dep.Status, appsv1.DeploymentAvailable) {
-			readyCondition.Status = corev1.ConditionFalse
-			readyCondition.Reason = "waiting deployment to be available"
+		if failed == nil {
+			conditon = NewStateCondition(csv1alpha1.ServerReady,
+				"code server now available", map[string]string{})
+			if !HasDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable) {
+				conditon.Status = corev1.ConditionFalse
+				conditon.Reason = "waiting deployment to be available"
+			} else {
+				//add instance endpoint
+				conditon.Message[InstanceEndpoint] = fmt.Sprintf("https://%s.%s/%s/ws",
+					codeServer.Spec.Subdomain,
+					r.Options.DomainName, DefaultPrefix)
+				//add it to watch list
+				var endPoint string
+				// only port differs, since no matter tls is enabled or nor we both expose upstream via http
+				if tlsSecret == nil {
+					endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpPort,
+						strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
+				} else {
+					endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpsPort,
+						strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
+				}
+
+				if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
+					// we keep the instance within MaxActiveSeconds maximumly
+					r.addToInactiveWatch(req.NamespacedName, MaxActiveSeconds, endPoint)
+					reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
+						MaxActiveSeconds))
+				} else if *codeServer.Spec.InactiveAfterSeconds == 0 {
+					// we will not watch this code server instance if inactive is set 0
+					reqLogger.Info("Code server will never be disactived")
+				} else {
+					r.addToInactiveWatch(req.NamespacedName, *codeServer.Spec.InactiveAfterSeconds, endPoint)
+					reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
+						*codeServer.Spec.InactiveAfterSeconds))
+				}
+
+			}
 		} else {
-			//add instance endpoint
-			readyCondition.Message[InstanceEndpoint] = fmt.Sprintf("https://%s.%s/%s/ws",
-				codeServer.Spec.Subdomain,
-				r.Options.DomainName, DefaultPrefix)
-			//add it to watch list
-			var endPoint string
-			// only port differs, since no matter tls is enabled or nor we both expose upstream via http
-			if tlsSecret == nil {
-				endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpPort,
-					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
-			} else {
-				endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpsPort,
-					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
-			}
-
-			if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
-				// we keep the instance within MaxActiveSeconds maximumly
-				r.addToInactiveWatch(req.NamespacedName, MaxActiveSeconds, endPoint)
-				reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
-					MaxActiveSeconds))
-			} else if *codeServer.Spec.InactiveAfterSeconds == 0 {
-				// we will not watch this code server instance if inactive is set 0
-				reqLogger.Info("Code server will never be disactived")
-			} else {
-				r.addToInactiveWatch(req.NamespacedName, *codeServer.Spec.InactiveAfterSeconds, endPoint)
-				reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
-					*codeServer.Spec.InactiveAfterSeconds))
-			}
-
+			conditon = NewStateCondition(csv1alpha1.ServerErrored,
+				"code server errored", map[string]string{"detail": failed.Error()})
 		}
-		SetCondition(&codeServer.Status, readyCondition)
+		SetCondition(&codeServer.Status, conditon)
 		updateStatus := codeServer.Status
 		err = r.Client.Get(context.TODO(), req.NamespacedName, codeServer)
 		if err != nil {
@@ -225,8 +228,13 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			reqLogger.Error(err, "Failed to update code server status.")
 			return reconcile.Result{Requeue: true}, nil
 		}
+		if failed != nil {
+			return reconcile.Result{
+				Requeue:      true,
+				RequeueAfter: time.Second * 30}, failed
+		}
 	}
-	return reconcile.Result{}, nil
+	return reconcile.Result{Requeue: false}, nil
 }
 
 func (r *CodeServerReconciler) addToInactiveWatch(resource types.NamespacedName, duration int64, endpoint string) {
@@ -969,17 +977,21 @@ func filterOutCondition(states *csv1alpha1.CodeServerStatus, currentCondition cs
 			break
 		}
 
-		if currentCondition.Type == csv1alpha1.ServerInactive || currentCondition.Type == csv1alpha1.ServerRecycled {
+		if currentCondition.Type == csv1alpha1.ServerInactive || currentCondition.Type == csv1alpha1.ServerRecycled ||
+			currentCondition.Type == csv1alpha1.ServerErrored {
 			if currentCondition.Status == corev1.ConditionTrue && condition.Type == csv1alpha1.ServerReady {
 				condition.Status = corev1.ConditionFalse
 				condition.LastUpdateTime = metav1.Now()
+				condition.LastTransitionTime = metav1.Now()
 			}
 		}
 
 		if currentCondition.Type == csv1alpha1.ServerReady && currentCondition.Status == corev1.ConditionTrue {
-			if condition.Type == csv1alpha1.ServerRecycled || condition.Type == csv1alpha1.ServerInactive {
+			if condition.Type == csv1alpha1.ServerRecycled || condition.Type == csv1alpha1.ServerInactive ||
+				currentCondition.Type == csv1alpha1.ServerErrored {
 				condition.Status = corev1.ConditionFalse
 				condition.LastUpdateTime = metav1.Now()
+				condition.LastTransitionTime = metav1.Now()
 			}
 		}
 		newConditions = append(newConditions, condition)

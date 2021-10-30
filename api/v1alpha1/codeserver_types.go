@@ -95,6 +95,8 @@ const (
 	ServerRecycled ServerConditionType = "ServerRecycled"
 	// ServerInactive means the code server will be marked inactive if `InactiveAfterSeconds` elapsed
 	ServerInactive ServerConditionType = "ServerInactive"
+	// ServerErrored means failed to reconcile code server.
+	ServerErrored ServerConditionType = "ServerErrored"
 )
 
 // ServerCondition describes the state of the code server at a certain point.
