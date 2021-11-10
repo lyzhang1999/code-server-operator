@@ -1,26 +1,25 @@
 apiVersion: cs.opensourceways.com/v1alpha1
 kind: CodeServer
 metadata:
-  name: codeserver-sample
+  name: codeserver-lxd-sample
 spec:
-  runtime: gotty
+  runtime: lxd
   subdomain: codeserverzhangjianjun
-  image: "opensourceway/openeuler-20.03-lts-sp1-base:latest@sha256:4e94a5b8e3636df00eebb042e43c1941dc46c9395cce54f96e414bee0eab3c57"
+  image: "opensourceway/playground-lxc-launcher:sha-5da419e"
   storageSize: "100Mi"
-  storageName: "emptyDir"
-  storageAnnotations:
-    everest.io/disk-volume-type: SSD
+  storageName: "default"
   ingressBandwidth: "10M"
   egressBandwidth: "10M"
   inactiveAfterSeconds: 0
   recycleAfterSeconds: 1200
   workspaceLocation: "/workspace"
   envs:
+    # env for gotty
     - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER
       value: "false"
     - name: GOTTY_CREDENTIAL
       value: name:password
-    - name: SHELL_USER
+    - name: COMMUNITY_USER
       value: zhangjianjun
     - name: GOTTY_MAX_CONNECTION
       value: "10"
@@ -30,48 +29,16 @@ spec:
       value: ".*"
     - name: GOTTY_PERMIT_WRITE
       value: "true"
-  args:
-    - zsh
-  connectProbe: "/active-time"
-  privileged: false
-  resources:
-    requests:
-      cpu: "1"
----
-apiVersion: cs.opensourceways.com/v1alpha1
-kind: CodeServer
-metadata:
-  name: codeserver-sample2
-spec:
-  runtime: gotty
-  subdomain: codeserverhusheng
-  image: "opensourceway/openeuler-20.03-lts-sp1-base:latest@sha256:4e94a5b8e3636df00eebb042e43c1941dc46c9395cce54f96e414bee0eab3c57"
-  storageSize: "100Mi"
-  storageName: "emptyDir"
-  storageAnnotations:
-    everest.io/disk-volume-type: SSD
-  ingressBandwidth: "10M"
-  egressBandwidth: "10M"
-  inactiveAfterSeconds: 12000
-  recycleAfterSeconds: 24000
-  workspaceLocation: "/workspace"
-  envs:
-    - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER
-      value: "false"
-    - name: GOTTY_CREDENTIAL
-      value: name:password
-    - name: SHELL_USER
-      value: husheng
-    - name: GOTTY_MAX_CONNECTION
-      value: "10"
-    - name: COMMUNITY_EMAIL
-      value: contact@openeuler.io
-    - name: GOTTY_WS_ORIGIN
-      value: ".*"
-    - name: GOTTY_PERMIT_WRITE
-      value: "true"
-  args:
-    - zsh
+    # env for lxd launcher
+    - name: LAUNCHER_ADDITIONAL_CONFIG #keep
+      value: raw.lxc=lxc.apparmor.profile=unconfined,security.nesting=true
+    - name: LAUNCHER_INSTANCE_PROFILES #keep
+      value: default
+    - name: LAUNCHER_IMAGE_ALIAS #keep
+      value: openeuler-gotty
+    # env for terminal
+    - name: TERM
+      value: xterm
   connectProbe: "/active-time"
   privileged: false
   resources:

@@ -23,12 +23,13 @@ import (
 )
 
 type CodeServerOption struct {
-	DomainName      string
-	VSExporterImage string
-	ProbeInterval   int
-	MaxProbeRetry   int
-	HttpsSecretName string
-	UrlPrefix       string
+	DomainName          string
+	VSExporterImage     string
+	ProbeInterval       int
+	MaxProbeRetry       int
+	HttpsSecretName     string
+	LxdClientSecretName string
+	UrlPrefix           string
 }
 
 type WatchType string

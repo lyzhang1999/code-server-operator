@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"path"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -48,8 +49,6 @@ const (
 	CSNAME           = "code-server"
 	MaxActiveSeconds = 60 * 60 * 24
 	MaxKeepSeconds   = 60 * 60 * 24 * 30
-	CertFile         = "tls.crt"
-	CertKey          = "tls.key"
 	HttpPort         = 8080
 	HttpsPort        = 8443
 	IngressLimitKey  = "kubernetes.io/ingress-bandwidth"
@@ -151,7 +150,15 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		var deployment *appsv1.Deployment
 		var conditon csv1alpha1.ServerCondition
 		// 0/5 check whether we need enable https
-		tlsSecret := r.findLegalCertSecrets(codeServer)
+		tlsSecret := r.findLegalCertSecrets(codeServer.Name, codeServer.Namespace, r.Options.HttpsSecretName)
+		// check LxdClientSecretName secret if needed
+		if strings.EqualFold(string(codeServer.Spec.Runtime), string(csv1alpha1.RuntimeLxd)) {
+			if len(r.Options.LxdClientSecretName) == 0 || r.findLegalCertSecrets(
+				codeServer.Name, codeServer.Namespace, r.Options.LxdClientSecretName) == nil {
+				failed = errrorlib.New(fmt.Sprintf("unable to find lxd client secret %s for lxd instance",
+					r.Options.LxdClientSecretName))
+			}
+		}
 		// 1/5: reconcile PVC
 		if r.needDeployPVC(codeServer.Spec.StorageName) {
 			_, failed = r.reconcileForPVC(codeServer)
@@ -255,23 +262,25 @@ func (r *CodeServerReconciler) deleteFromInactiveWatch(resource types.Namespaced
 	r.ReqCh <- request
 }
 
-func (r *CodeServerReconciler) findLegalCertSecrets(codeServer *csv1alpha1.CodeServer) *corev1.Secret {
-	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
+func (r *CodeServerReconciler) findLegalCertSecrets(name, namespace, secretName string) *corev1.Secret {
+	reqLogger := r.Log.WithValues("namespace", namespace, "name", name)
 	tlsSecret := &corev1.Secret{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: r.Options.HttpsSecretName, Namespace: codeServer.Namespace}, tlsSecret)
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, tlsSecret)
 	if err == nil {
-		if _, ok := tlsSecret.Data[CertFile]; !ok {
-			reqLogger.Info(fmt.Sprintf("could not found secret key %s in secret, skip enabling https", CertFile))
+		if _, ok := tlsSecret.Data[corev1.TLSCertKey]; !ok {
+			reqLogger.Info(
+				fmt.Sprintf("could not found secret key %s in secret %s", corev1.TLSCertKey, secretName))
 			return nil
 		}
-		if _, ok := tlsSecret.Data[CertKey]; !ok {
-			reqLogger.Info(fmt.Sprintf("could not found secret key %s in secret, skip enabling https", CertKey))
+		if _, ok := tlsSecret.Data[corev1.TLSPrivateKeyKey]; !ok {
+			reqLogger.Info(
+				fmt.Sprintf("could not found secret key %s in secret %s", corev1.TLSPrivateKeyKey, secretName))
 			return nil
 		}
-		reqLogger.Info(fmt.Sprintf("found secret %s in cluster, do enabling https", r.Options.HttpsSecretName))
+		reqLogger.Info(fmt.Sprintf("found secret %s in cluster", secretName))
 		return tlsSecret
 	}
-	reqLogger.Info(fmt.Sprintf("could not found secret %s in cluster, skip enabling https", r.Options.HttpsSecretName))
+	reqLogger.Info(fmt.Sprintf("could not found secret %s in cluster", secretName))
 	return nil
 }
 
@@ -521,6 +530,8 @@ func (r *CodeServerReconciler) getDeployment(m *csv1alpha1.CodeServer, secret *c
 		return r.deploymentForCodeServer(m, secret), nil
 	} else if strings.EqualFold(runtime, string(csv1alpha1.RuntimeGotty)) {
 		return r.deploymentForGotty(m, secret), nil
+	} else if strings.EqualFold(runtime, string(csv1alpha1.RuntimeLxd)) {
+		return r.deploymentForLxd(m, secret), nil
 	} else {
 		return nil, errrorlib.New(fmt.Sprintf("unsupported runtime %s", m.Spec.Runtime))
 	}
@@ -618,7 +629,8 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, secretVolume)
 		for index, con := range dep.Spec.Template.Spec.Containers {
 			if con.Name == CSNAME {
-				secretsArgument := []string{"--cert", fmt.Sprintf("/etc/config/csserver/%s", CertFile), "--cert-key", fmt.Sprintf("/etc/config/csserver/%s", CertKey)}
+				secretsArgument := []string{"--cert", fmt.Sprintf("/etc/config/csserver/%s", corev1.TLSCertKey),
+					"--cert-key", fmt.Sprintf("/etc/config/csserver/%s", corev1.TLSPrivateKeyKey)}
 				dep.Spec.Template.Spec.Containers[index].Args = append(dep.Spec.Template.Spec.Containers[index].Args, secretsArgument...)
 				newVolumeMounts := []corev1.VolumeMount{
 					{
@@ -636,7 +648,7 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 	return dep
 }
 
-// deploymentForCodeServer returns a code server Deployment object
+// deploymentForCodeServer returns a Deployment object for gotty
 func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
 	reqLogger := r.Log.WithValues("namespace", m.Namespace, "name", m.Name)
 	ls := labelsForCodeServer(m.Name)
@@ -733,6 +745,206 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 				dep.Spec.Template.Spec.Containers[index].Env = append(
 					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
 						Name:  "GOTTY_PORT",
+						Value: strconv.Itoa(HttpPort),
+					})
+				dep.Spec.Template.Spec.Containers[index].Ports = append(
+					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+						ContainerPort: HttpPort,
+						Name:          "http",
+					})
+			}
+		}
+	}
+	// Append ingress and egress limit
+	dep.Spec.Template.Annotations = map[string]string{}
+	if len(m.Spec.IngressBandwidth) != 0 {
+		dep.Spec.Template.Annotations[IngressLimitKey] = m.Spec.IngressBandwidth
+	}
+	if len(m.Spec.EgressBandwidth) != 0 {
+		dep.Spec.Template.Annotations[EgressLimitKey] = m.Spec.EgressBandwidth
+	}
+	// Set CodeServer instance as the owner of the Deployment.
+	controllerutil.SetControllerReference(m, dep, r.Scheme)
+	return dep
+}
+
+func (r *CodeServerReconciler) assembleBaseLxdEnvs(m *csv1alpha1.CodeServer, clientSecretPath string) []corev1.EnvVar {
+	var instanceEnvs []corev1.EnvVar
+	var gottyEnvs []string
+	// 1. environments start from LAUNCHER will be added into pod env,
+	// otherwise will be passed via LAUNCHER_INSTANCE_ENVS
+	for _, env := range m.Spec.Envs {
+		if strings.HasPrefix(env.Name, "LAUNCHER") {
+			instanceEnvs = append(instanceEnvs, env)
+		} else {
+			// append to the lxd instance env
+			gottyEnvs = append(gottyEnvs, fmt.Sprintf("%s=%s", env.Name, env.Value))
+		}
+	}
+	instanceEnvs = append(instanceEnvs,
+		corev1.EnvVar{
+			Name:  "LAUNCHER_INSTANCE_ENVS",
+			Value: strings.Join(gottyEnvs, ","),
+		})
+
+	// 2. LAUNCHER_LXD_SERVER_ADDRESS, LAUNCHER_CLIENT_KEY_PATH, LAUNCHER_CLIENT_CERT_PATH
+	instanceEnvs = append(instanceEnvs, corev1.EnvVar{
+		Name:  "LAUNCHER_CLIENT_KEY_PATH",
+		Value: path.Join(clientSecretPath, corev1.TLSPrivateKeyKey),
+	}, corev1.EnvVar{
+		Name:  "LAUNCHER_CLIENT_CERT_PATH",
+		Value: path.Join(clientSecretPath, corev1.TLSCertKey),
+	}, corev1.EnvVar{
+		Name: "LAUNCHER_LXD_SERVER_ADDRESS",
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: "status.hostIP",
+			},
+		},
+	})
+	// 3. Launch start command, we need import all the envs before start service
+	instanceEnvs = append(instanceEnvs, corev1.EnvVar{
+		Name:  "LAUNCHER_START_COMMAND",
+		Value: "systemctl import-environment && systemctl start gotty",
+	})
+	// 4. network bandwidth
+	if len(m.Spec.IngressBandwidth) != 0 {
+		instanceEnvs = append(instanceEnvs, corev1.EnvVar{
+			Name:  "LAUNCHER_NETWORK_INGRESS",
+			Value: m.Spec.IngressBandwidth,
+		})
+	}
+	if len(m.Spec.EgressBandwidth) != 0 {
+		instanceEnvs = append(instanceEnvs, corev1.EnvVar{
+			Name:  "LAUNCHER_NETWORK_EGRESS",
+			Value: m.Spec.EgressBandwidth,
+		})
+	}
+	// 5. resource limit
+	if value, ok := m.Spec.Resources.Requests[corev1.ResourceCPU]; ok {
+		instanceEnvs = append(instanceEnvs, corev1.EnvVar{
+			Name:  "LAUNCHER_CPU_RESOURCE",
+			Value: value.String(),
+		})
+	}
+	if value, ok := m.Spec.Resources.Requests[corev1.ResourceMemory]; ok {
+		instanceEnvs = append(instanceEnvs, corev1.EnvVar{
+			Name:  "LAUNCHER_MEMORY_RESOURCE",
+			Value: value.String(),
+		})
+	}
+	instanceEnvs = append(instanceEnvs, corev1.EnvVar{
+		Name:  "LAUNCHER_STORAGE_POOL",
+		Value: m.Spec.StorageName,
+	}, corev1.EnvVar{
+		Name:  "LAUNCHER_ROOT_SIZE",
+		Value: m.Spec.StorageSize,
+	})
+
+	// 6. others
+	instanceEnvs = append(instanceEnvs, corev1.EnvVar{
+		Name:  "LAUNCHER_REMOVE_EXISTING",
+		Value: "true",
+	})
+	return instanceEnvs
+}
+
+// deploymentForLxd returns a Deployment object for lxc launcher
+func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
+	reqLogger := r.Log.WithValues("namespace", m.Namespace, "name", m.Name)
+	ls := labelsForCodeServer(m.Name)
+	baseProxyDir := m.Spec.WorkspaceLocation
+	baseProxyVolume := "code-server-workspace"
+	replicas := int32(1)
+	enablePriviledge := m.Spec.Privileged
+	priviledged := corev1.SecurityContext{
+		Privileged: enablePriviledge,
+	}
+	reqLogger.Info("lxd container doesn't support init containers.")
+	envs := r.assembleBaseLxdEnvs(m, baseProxyDir)
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      m.Name,
+			Namespace: m.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: ls,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: ls,
+				},
+				Spec: corev1.PodSpec{
+					NodeSelector: m.Spec.NodeSelector,
+					Containers: []corev1.Container{
+						{
+							Image:           m.Spec.Image,
+							Name:            CSNAME,
+							Env:             envs,
+							Args:            []string{"launch", m.Name},
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							SecurityContext: &priviledged,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									MountPath: baseProxyDir,
+									Name:      baseProxyVolume,
+								},
+							},
+							// pass resource requests to pod, actually, the resource will be consumed by lxd.
+							Resources: m.Spec.Resources,
+						},
+					},
+				},
+			},
+		},
+	}
+	// add secret volume for lxd cert
+	secretVolume := corev1.Volume{
+		Name: baseProxyVolume,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: r.Options.LxdClientSecretName,
+			},
+		},
+	}
+	dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, secretVolume)
+	//https will be disabled no matter secret is provided or not. we only expose different port here.
+	if secret != nil {
+		for index, con := range dep.Spec.Template.Spec.Containers {
+			if con.Name == CSNAME {
+				dep.Spec.Template.Spec.Containers[index].Env = append(
+					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
+						Name:  "GOTTY_PORT",
+						Value: strconv.Itoa(HttpsPort),
+					}, corev1.EnvVar{
+						Name:  "LAUNCHER_EXPOSE_PORT",
+						Value: strconv.Itoa(HttpsPort),
+					}, corev1.EnvVar{
+						Name:  "LAUNCHER_PROXY_PORT",
+						Value: strconv.Itoa(HttpsPort),
+					})
+				dep.Spec.Template.Spec.Containers[index].Ports = append(
+					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+						ContainerPort: HttpsPort,
+						Name:          "https",
+					})
+			}
+		}
+	} else {
+		for index, con := range dep.Spec.Template.Spec.Containers {
+			if con.Name == CSNAME {
+				dep.Spec.Template.Spec.Containers[index].Env = append(
+					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
+						Name:  "GOTTY_PORT",
+						Value: strconv.Itoa(HttpPort),
+					}, corev1.EnvVar{
+						Name:  "LAUNCHER_EXPOSE_PORT",
+						Value: strconv.Itoa(HttpPort),
+					}, corev1.EnvVar{
+						Name:  "LAUNCHER_PROXY_PORT",
 						Value: strconv.Itoa(HttpPort),
 					})
 				dep.Spec.Template.Spec.Containers[index].Ports = append(

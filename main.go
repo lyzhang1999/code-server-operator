@@ -82,7 +82,8 @@ func main() {
 		"time in seconds between two probes on code server instance.")
 	flag.IntVar(&csOption.MaxProbeRetry, "max-probe-retry", 10,
 		"count before marking code server inactive when failed to probe liveness")
-	flag.StringVar(&csOption.HttpsSecretName, "secrets-name", "code-server-secret", "Secret which holds the https cert(tls.crt) and key file(tls.key). This secret will be used in ingress controller as well as code server instance.")
+	flag.StringVar(&csOption.HttpsSecretName, "secret-name", "code-server-secret", "Secret which holds the https cert(tls.crt) and key file(tls.key). This secret will be used in ingress controller as well as code server instance.")
+	flag.StringVar(&csOption.LxdClientSecretName, "lxd-client-secret-name", "lxd-client-secret", "Secret which holds the key and secret for lxc client to communicate to server.")
 	flag.StringVar(&csOption.UrlPrefix, "url-prefix", "terminal", "Url prefix added before instance url.")
 	flag.Parse()
 
