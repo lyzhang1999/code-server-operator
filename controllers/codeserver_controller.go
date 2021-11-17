@@ -57,6 +57,8 @@ const (
 	StorageEmptyDir  = "emptyDir"
 	DefaultPrefix    = "terminal"
 	InstanceEndpoint = "instanceEndpoint"
+	TerminalIngress  = "%s-terminal"
+	UserPortIngress  = "%s-user-port"
 )
 
 // CodeServerReconciler reconciles a CodeServer object
@@ -149,7 +151,7 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		var failed error
 		var service *corev1.Service
 		var deployment *appsv1.Deployment
-		var conditon csv1alpha1.ServerCondition
+		var condition csv1alpha1.ServerCondition
 		// 0/5 check whether we need enable https
 		tlsSecret := r.findLegalCertSecrets(codeServer.Name, codeServer.Namespace, r.Options.HttpsSecretName)
 		// check LxdClientSecretName secret if needed
@@ -170,11 +172,11 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		}
 		// 3/5:reconcile ingress
 		if failed == nil {
-			_, failed = r.reconcileForIngress(codeServer, tlsSecret)
+			_, failed = r.reconcileForTerminalIngress(codeServer, tlsSecret)
 		}
 
 		if failed == nil {
-			_, failed = r.reconcileForIngressUserPort(codeServer, tlsSecret)
+			_, failed = r.reconcileForUserPortIngress(codeServer, tlsSecret)
 		}
 		// 4/5: reconcile deployment
 		if failed == nil {
@@ -187,14 +189,14 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			SetCondition(&codeServer.Status, createdCondition)
 		}
 		if failed == nil {
-			conditon = NewStateCondition(csv1alpha1.ServerReady,
+			condition = NewStateCondition(csv1alpha1.ServerReady,
 				"code server now available", map[string]string{})
 			if !HasDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable) {
-				conditon.Status = corev1.ConditionFalse
-				conditon.Reason = "waiting deployment to be available"
+				condition.Status = corev1.ConditionFalse
+				condition.Reason = "waiting deployment to be available"
 			} else {
 				//add instance endpoint
-				conditon.Message[InstanceEndpoint] = fmt.Sprintf("https://%s.%s/%s/ws",
+				condition.Message[InstanceEndpoint] = fmt.Sprintf("https://%s.%s/%s/ws",
 					codeServer.Spec.Subdomain,
 					r.Options.DomainName, DefaultPrefix)
 				//add it to watch list
@@ -224,10 +226,10 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 
 			}
 		} else {
-			conditon = NewStateCondition(csv1alpha1.ServerErrored,
+			condition = NewStateCondition(csv1alpha1.ServerErrored,
 				"code server errored", map[string]string{"detail": failed.Error()})
 		}
-		SetCondition(&codeServer.Status, conditon)
+		SetCondition(&codeServer.Status, condition)
 		updateStatus := codeServer.Status
 		err = r.Client.Get(context.TODO(), req.NamespacedName, codeServer)
 		if err != nil {
@@ -371,7 +373,7 @@ func (r *CodeServerReconciler) reconcileForPVC(codeServer *csv1alpha1.CodeServer
 	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
 	reqLogger.Info("Reconciling persistent volume claim.")
 	//reconcile pvc for code server
-	newPvc, err := r.pvcForCodeServer(codeServer)
+	newPvc, err := r.newPVC(codeServer)
 	if err != nil {
 		reqLogger.Error(err, "Failed to create new PersistentVolumeClaim.")
 		return nil, err
@@ -404,7 +406,7 @@ func (r *CodeServerReconciler) reconcileForDeployment(codeServer *csv1alpha1.Cod
 	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
 	reqLogger.Info("Reconciling Deployment.")
 	//reconcile pvc for code server
-	newDev, err := r.getDeployment(codeServer, secret)
+	newDev, err := r.newDeployment(codeServer, secret)
 	if err != nil {
 		reqLogger.Error(err, "Failed to generate Deployment.")
 		return nil, err
@@ -437,18 +439,18 @@ func (r *CodeServerReconciler) reconcileForDeployment(codeServer *csv1alpha1.Cod
 	return oldDev, nil
 }
 
-func (r *CodeServerReconciler) reconcileForIngress(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*extv1.Ingress, error) {
+func (r *CodeServerReconciler) reconcileForTerminalIngress(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*extv1.Ingress, error) {
 	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
-	reqLogger.Info("Reconciling ingress.")
+	reqLogger.Info("Reconciling terminal ingress.")
 	//reconcile ingress for code server
-	newIngress := r.ingressForCodeServer(codeServer, secret)
+	newIngress := r.NewTerminalIngress(codeServer, secret)
 	oldIngress := &extv1.Ingress{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: codeServer.Name, Namespace: codeServer.Namespace}, oldIngress)
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: fmt.Sprintf(TerminalIngress, codeServer.Name), Namespace: codeServer.Namespace}, oldIngress)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a Ingress.")
+		reqLogger.Info("Creating a terminal ingress.")
 		err = r.Client.Create(context.TODO(), newIngress)
 		if err != nil {
-			reqLogger.Error(err, "Failed to create Ingress.")
+			reqLogger.Error(err, "Failed to create terminal ingress.")
 			return nil, err
 		}
 		// if update is required
@@ -460,10 +462,10 @@ func (r *CodeServerReconciler) reconcileForIngress(codeServer *csv1alpha1.CodeSe
 		}
 		if !equality.Semantic.DeepEqual(oldIngress.Spec, newIngress.Spec) {
 			oldIngress.Spec = newIngress.Spec
-			reqLogger.Info("Updating a Ingress.")
+			reqLogger.Info("Updating a terminal ingress.")
 			err = r.Client.Update(context.TODO(), oldIngress)
 			if err != nil {
-				reqLogger.Error(err, "Failed to update Ingress.")
+				reqLogger.Error(err, "Failed to update terminal ingress.")
 				return nil, err
 			}
 		}
@@ -471,19 +473,19 @@ func (r *CodeServerReconciler) reconcileForIngress(codeServer *csv1alpha1.CodeSe
 	return oldIngress, nil
 }
 
-func (r *CodeServerReconciler) reconcileForIngressUserPort(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*extv1.Ingress, error) {
+func (r *CodeServerReconciler) reconcileForUserPortIngress(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*extv1.Ingress, error) {
 	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
-	reqLogger.Info("Reconciling ingress for user port.")
+	reqLogger.Info("Reconciling user port ingress.")
 	//reconcile ingress for code server
-	newIngress := r.ingressForCodeServerUserEndpoint(codeServer, secret)
+	newIngress := r.newUserPortIngress(codeServer, secret)
 	oldIngress := &extv1.Ingress{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: fmt.Sprintf("%s-userport", codeServer.Name),
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: fmt.Sprintf(UserPortIngress, codeServer.Name),
 		Namespace: codeServer.Namespace}, oldIngress)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a Ingress for user port.")
+		reqLogger.Info("Creating a user port ingress.")
 		err = r.Client.Create(context.TODO(), newIngress)
 		if err != nil {
-			reqLogger.Error(err, "Failed to create Ingress  for user port.")
+			reqLogger.Error(err, "Failed to create user port ingress.")
 			return nil, err
 		}
 		// if update is required
@@ -498,7 +500,7 @@ func (r *CodeServerReconciler) reconcileForIngressUserPort(codeServer *csv1alpha
 			reqLogger.Info("Updating a Ingress for user port.")
 			err = r.Client.Update(context.TODO(), oldIngress)
 			if err != nil {
-				reqLogger.Error(err, "Failed to update Ingress for user port.")
+				reqLogger.Error(err, "Failed to update user port ingress.")
 				return nil, err
 			}
 		}
@@ -510,7 +512,7 @@ func (r *CodeServerReconciler) reconcileForService(codeServer *csv1alpha1.CodeSe
 	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
 	reqLogger.Info("Reconciling service.")
 	//reconcile service for code server
-	newService := r.serviceForCodeServer(codeServer, secret)
+	newService := r.newService(codeServer, secret)
 	oldService := &corev1.Service{}
 	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: codeServer.Name, Namespace: codeServer.Namespace}, oldService)
 	if err != nil && errors.IsNotFound(err) {
@@ -564,25 +566,28 @@ func (r *CodeServerReconciler) addInitContainersForDeployment(m *csv1alpha1.Code
 	return containers
 }
 
-func (r *CodeServerReconciler) getDeployment(m *csv1alpha1.CodeServer, secret *corev1.Secret) (*appsv1.Deployment, error) {
+func (r *CodeServerReconciler) newDeployment(m *csv1alpha1.CodeServer, secret *corev1.Secret) (*appsv1.Deployment, error) {
 	runtime := string(m.Spec.Runtime)
 	if strings.EqualFold(runtime, string(csv1alpha1.RuntimeCode)) {
-		return r.deploymentForCodeServer(m, secret), nil
+		//Create code server environment with vs code
+		return r.deploymentForVSCodeServer(m, secret), nil
 	} else if strings.EqualFold(runtime, string(csv1alpha1.RuntimeGotty)) {
+		//Create code server environment with gotty based terminal
 		return r.deploymentForGotty(m, secret), nil
 	} else if strings.EqualFold(runtime, string(csv1alpha1.RuntimeLxd)) {
+		//Create code server environment with gotty based terminal which runs on lxd
 		return r.deploymentForLxd(m, secret), nil
 	} else {
 		return nil, errrorlib.New(fmt.Sprintf("unsupported runtime %s", m.Spec.Runtime))
 	}
 }
 
-// deploymentForCodeServer returns a code server Deployment object
-func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
+// deploymentForVSCodeServer returns a code server with VSCode Deployment object
+func (r *CodeServerReconciler) deploymentForVSCodeServer(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
 	reqLogger := r.Log.WithValues("namespace", m.Namespace, "name", m.Name)
 	baseCodeDir := "/home/coder/project"
 	baseCodeVolume := "code-server-project-dir"
-	ls := labelsForCodeServer(m.Name)
+	ls := appLabel(m.Name)
 	replicas := int32(1)
 	enablePriviledge := m.Spec.Privileged
 	priviledged := corev1.SecurityContext{
@@ -688,10 +693,10 @@ func (r *CodeServerReconciler) deploymentForCodeServer(m *csv1alpha1.CodeServer,
 	return dep
 }
 
-// deploymentForCodeServer returns a Deployment object for gotty
+// deploymentForGotty returns an instance with gotty based terminal Deployment object for gotty
 func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
 	reqLogger := r.Log.WithValues("namespace", m.Namespace, "name", m.Name)
-	ls := labelsForCodeServer(m.Name)
+	ls := appLabel(m.Name)
 	baseCodeDir := m.Spec.WorkspaceLocation
 	baseCodeVolume := "code-server-workspace"
 	replicas := int32(1)
@@ -908,10 +913,10 @@ func (r *CodeServerReconciler) assembleBaseLxdEnvs(
 	return instanceEnvs
 }
 
-// deploymentForLxd returns a Deployment object for lxc launcher
+// deploymentForLxd returns an instance with gotty based terminal on lxd Deployment object for lxc launcher
 func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret *corev1.Secret) *appsv1.Deployment {
 	reqLogger := r.Log.WithValues("namespace", m.Namespace, "name", m.Name)
-	ls := labelsForCodeServer(m.Name)
+	ls := appLabel(m.Name)
 	baseProxyDir := m.Spec.WorkspaceLocation
 	baseProxyVolume := "code-server-workspace"
 	replicas := int32(1)
@@ -1036,9 +1041,9 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 	return dep
 }
 
-// serviceForCodeServer function takes in a CodeServer object and returns a Service for that object.
-func (r *CodeServerReconciler) serviceForCodeServer(m *csv1alpha1.CodeServer, secret *corev1.Secret) *corev1.Service {
-	ls := labelsForCodeServer(m.Name)
+// newService function takes in a CodeServer object and returns a Service for that object.
+func (r *CodeServerReconciler) newService(m *csv1alpha1.CodeServer, secret *corev1.Secret) *corev1.Service {
+	ls := appLabel(m.Name)
 	ser := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      m.Name,
@@ -1081,8 +1086,8 @@ func (r *CodeServerReconciler) needDeployPVC(storageName string) bool {
 	return true
 }
 
-// pvcForCodeServer function takes in a CodeServer object and returns a PersistentVolumeClaim for that object.
-func (r *CodeServerReconciler) pvcForCodeServer(m *csv1alpha1.CodeServer) (*corev1.PersistentVolumeClaim, error) {
+// newPVC function takes in a CodeServer object and returns a PersistentVolumeClaim for that object.
+func (r *CodeServerReconciler) newPVC(m *csv1alpha1.CodeServer) (*corev1.PersistentVolumeClaim, error) {
 	pvcQuantity, err := resourcev1.ParseQuantity(m.Spec.StorageSize)
 	if err != nil {
 		return nil, err
@@ -1117,8 +1122,8 @@ func (r *CodeServerReconciler) getInstanceUrl(m *csv1alpha1.CodeServer) string {
 	}
 }
 
-// ingressForCodeServerUserEndpoint function takes in a CodeServer object and returns an ingress for that object.
-func (r *CodeServerReconciler) ingressForCodeServerUserEndpoint(
+// newUserPortIngress function takes in a CodeServer object and returns an ingress for that object.
+func (r *CodeServerReconciler) newUserPortIngress(
 	m *csv1alpha1.CodeServer, secret *corev1.Secret) *extv1.Ingress {
 	httpValue := extv1.HTTPIngressRuleValue{
 		Paths: []extv1.HTTPIngressPath{
@@ -1133,7 +1138,7 @@ func (r *CodeServerReconciler) ingressForCodeServerUserEndpoint(
 	}
 	ingress := &extv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-userport", m.Name),
+			Name:      fmt.Sprintf(UserPortIngress, m.Name),
 			Namespace: m.Namespace,
 			Annotations: map[string]string{
 				"kubernetes.io/ingress.class": "nginx",
@@ -1163,8 +1168,8 @@ func (r *CodeServerReconciler) ingressForCodeServerUserEndpoint(
 	return ingress
 }
 
-// ingressForCodeServer function takes in a CodeServer object and returns a ingress for that object.
-func (r *CodeServerReconciler) ingressForCodeServer(m *csv1alpha1.CodeServer, secret *corev1.Secret) *extv1.Ingress {
+// NewTerminalIngress function takes in a CodeServer object and returns an ingress for that object.
+func (r *CodeServerReconciler) NewTerminalIngress(m *csv1alpha1.CodeServer, secret *corev1.Secret) *extv1.Ingress {
 	servicePort := intstr.FromInt(HttpPort)
 	if secret != nil {
 		servicePort = intstr.FromInt(HttpsPort)
@@ -1182,7 +1187,7 @@ func (r *CodeServerReconciler) ingressForCodeServer(m *csv1alpha1.CodeServer, se
 	}
 	ingress := &extv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        m.Name,
+			Name:        fmt.Sprintf(TerminalIngress, m.Name),
 			Namespace:   m.Namespace,
 			Annotations: r.annotationsForIngress(m, secret),
 		},
@@ -1227,9 +1232,9 @@ sub_filter '<head>' '<head> <base href="%s/">';`, r.getInstanceUrl(m))
 	return annotation
 }
 
-// labelsForCodeServer returns the labels for selecting the resources
-// belonging to the given CodeServer name.
-func labelsForCodeServer(name string) map[string]string {
+// appLabel returns the labels for selecting the resources
+// belonging to the given instance name.
+func appLabel(name string) map[string]string {
 	return map[string]string{"app": "codeserver", "cs_name": name}
 }
 
