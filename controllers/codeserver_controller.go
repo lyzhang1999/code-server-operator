@@ -50,6 +50,7 @@ const (
 	MaxActiveSeconds = 60 * 60 * 24
 	MaxKeepSeconds   = 60 * 60 * 24 * 30
 	HttpPort         = 8080
+	UserPort         = 80
 	HttpsPort        = 8443
 	IngressLimitKey  = "kubernetes.io/ingress-bandwidth"
 	EgressLimitKey   = "kubernetes.io/egress-bandwidth"
@@ -170,6 +171,10 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		// 3/5:reconcile ingress
 		if failed == nil {
 			_, failed = r.reconcileForIngress(codeServer, tlsSecret)
+		}
+
+		if failed == nil {
+			_, failed = r.reconcileForIngressUserPort(codeServer, tlsSecret)
 		}
 		// 4/5: reconcile deployment
 		if failed == nil {
@@ -466,6 +471,41 @@ func (r *CodeServerReconciler) reconcileForIngress(codeServer *csv1alpha1.CodeSe
 	return oldIngress, nil
 }
 
+func (r *CodeServerReconciler) reconcileForIngressUserPort(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*extv1.Ingress, error) {
+	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
+	reqLogger.Info("Reconciling ingress for user port.")
+	//reconcile ingress for code server
+	newIngress := r.ingressForCodeServerUserEndpoint(codeServer, secret)
+	oldIngress := &extv1.Ingress{}
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: fmt.Sprintf("%s-userport", codeServer.Name),
+		Namespace: codeServer.Namespace}, oldIngress)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a Ingress for user port.")
+		err = r.Client.Create(context.TODO(), newIngress)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create Ingress  for user port.")
+			return nil, err
+		}
+		// if update is required
+	} else {
+		if err != nil {
+			//Reschedule the event
+			reqLogger.Error(err, fmt.Sprintf("Failed to get Ingress for %s.", codeServer.Name))
+			return nil, err
+		}
+		if !equality.Semantic.DeepEqual(oldIngress.Spec, newIngress.Spec) {
+			oldIngress.Spec = newIngress.Spec
+			reqLogger.Info("Updating a Ingress for user port.")
+			err = r.Client.Update(context.TODO(), oldIngress)
+			if err != nil {
+				reqLogger.Error(err, "Failed to update Ingress for user port.")
+				return nil, err
+			}
+		}
+	}
+	return oldIngress, nil
+}
+
 func (r *CodeServerReconciler) reconcileForService(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*corev1.Service, error) {
 	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
 	reqLogger.Info("Reconciling service.")
@@ -737,6 +777,11 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 						ContainerPort: HttpsPort,
 						Name:          "https",
 					})
+				dep.Spec.Template.Spec.Containers[index].Ports = append(
+					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+						ContainerPort: UserPort,
+						Name:          "user",
+					})
 			}
 		}
 	} else {
@@ -751,6 +796,11 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
 						ContainerPort: HttpPort,
 						Name:          "http",
+					})
+				dep.Spec.Template.Spec.Containers[index].Ports = append(
+					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+						ContainerPort: UserPort,
+						Name:          "user",
 					})
 			}
 		}
@@ -768,12 +818,21 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 	return dep
 }
 
-func (r *CodeServerReconciler) assembleBaseLxdEnvs(m *csv1alpha1.CodeServer, clientSecretPath string) []corev1.EnvVar {
+func (r *CodeServerReconciler) assembleBaseLxdEnvs(
+	m *csv1alpha1.CodeServer, clientSecretPath string, additionalEnvs []corev1.EnvVar) []corev1.EnvVar {
 	var instanceEnvs []corev1.EnvVar
 	var gottyEnvs []string
 	// 1. environments start from LAUNCHER will be added into pod env,
 	// otherwise will be passed via LAUNCHER_INSTANCE_ENVS
 	for _, env := range m.Spec.Envs {
+		if strings.HasPrefix(env.Name, "LAUNCHER") {
+			instanceEnvs = append(instanceEnvs, env)
+		} else {
+			// append to the lxd instance env
+			gottyEnvs = append(gottyEnvs, fmt.Sprintf("%s=%s", env.Name, env.Value))
+		}
+	}
+	for _, env := range additionalEnvs {
 		if strings.HasPrefix(env.Name, "LAUNCHER") {
 			instanceEnvs = append(instanceEnvs, env)
 		} else {
@@ -857,11 +916,32 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 	baseProxyVolume := "code-server-workspace"
 	replicas := int32(1)
 	enablePriviledge := m.Spec.Privileged
+	var additionalEnvs []corev1.EnvVar
 	priviledged := corev1.SecurityContext{
 		Privileged: enablePriviledge,
 	}
 	reqLogger.Info("lxd container doesn't support init containers.")
-	envs := r.assembleBaseLxdEnvs(m, baseProxyDir)
+	if secret != nil {
+		ProxyPort := fmt.Sprintf("80:80,%d:%d", HttpsPort, HttpsPort)
+		additionalEnvs = append(additionalEnvs, corev1.EnvVar{
+			Name:  "GOTTY_PORT",
+			Value: strconv.Itoa(HttpsPort),
+		}, corev1.EnvVar{
+			Name:  "LAUNCHER_PROXY_PORT_PAIRS",
+			Value: ProxyPort,
+		})
+
+	} else {
+		ProxyPort := fmt.Sprintf("80:80,%d:%d", HttpPort, HttpPort)
+		additionalEnvs = append(additionalEnvs, corev1.EnvVar{
+			Name:  "GOTTY_PORT",
+			Value: strconv.Itoa(HttpPort),
+		}, corev1.EnvVar{
+			Name:  "LAUNCHER_PROXY_PORT_PAIRS",
+			Value: ProxyPort,
+		})
+	}
+	envs := r.assembleBaseLxdEnvs(m, baseProxyDir, additionalEnvs)
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -915,42 +995,30 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 	if secret != nil {
 		for index, con := range dep.Spec.Template.Spec.Containers {
 			if con.Name == CSNAME {
-				dep.Spec.Template.Spec.Containers[index].Env = append(
-					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
-						Name:  "GOTTY_PORT",
-						Value: strconv.Itoa(HttpsPort),
-					}, corev1.EnvVar{
-						Name:  "LAUNCHER_EXPOSE_PORT",
-						Value: strconv.Itoa(HttpsPort),
-					}, corev1.EnvVar{
-						Name:  "LAUNCHER_PROXY_PORT",
-						Value: strconv.Itoa(HttpsPort),
-					})
 				dep.Spec.Template.Spec.Containers[index].Ports = append(
 					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
 						ContainerPort: HttpsPort,
 						Name:          "https",
+					})
+				dep.Spec.Template.Spec.Containers[index].Ports = append(
+					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+						ContainerPort: UserPort,
+						Name:          "user",
 					})
 			}
 		}
 	} else {
 		for index, con := range dep.Spec.Template.Spec.Containers {
 			if con.Name == CSNAME {
-				dep.Spec.Template.Spec.Containers[index].Env = append(
-					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
-						Name:  "GOTTY_PORT",
-						Value: strconv.Itoa(HttpPort),
-					}, corev1.EnvVar{
-						Name:  "LAUNCHER_EXPOSE_PORT",
-						Value: strconv.Itoa(HttpPort),
-					}, corev1.EnvVar{
-						Name:  "LAUNCHER_PROXY_PORT",
-						Value: strconv.Itoa(HttpPort),
-					})
 				dep.Spec.Template.Spec.Containers[index].Ports = append(
 					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
 						ContainerPort: HttpPort,
 						Name:          "http",
+					})
+				dep.Spec.Template.Spec.Containers[index].Ports = append(
+					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+						ContainerPort: UserPort,
+						Name:          "user",
 					})
 			}
 		}
@@ -995,6 +1063,12 @@ func (r *CodeServerReconciler) serviceForCodeServer(m *csv1alpha1.CodeServer, se
 			TargetPort: intstr.FromInt(HttpsPort),
 		})
 	}
+	ser.Spec.Ports = append(ser.Spec.Ports, corev1.ServicePort{
+		Port:       UserPort,
+		Name:       "user",
+		Protocol:   corev1.ProtocolTCP,
+		TargetPort: intstr.FromInt(UserPort),
+	})
 	// Set CodeServer instance as the owner of the Service.
 	controllerutil.SetControllerReference(m, ser, r.Scheme)
 	return ser
@@ -1043,6 +1117,52 @@ func (r *CodeServerReconciler) getInstanceUrl(m *csv1alpha1.CodeServer) string {
 	}
 }
 
+// ingressForCodeServerUserEndpoint function takes in a CodeServer object and returns an ingress for that object.
+func (r *CodeServerReconciler) ingressForCodeServerUserEndpoint(
+	m *csv1alpha1.CodeServer, secret *corev1.Secret) *extv1.Ingress {
+	httpValue := extv1.HTTPIngressRuleValue{
+		Paths: []extv1.HTTPIngressPath{
+			{
+				Path: "/",
+				Backend: extv1.IngressBackend{
+					ServiceName: m.Name,
+					ServicePort: intstr.FromInt(UserPort),
+				},
+			},
+		},
+	}
+	ingress := &extv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-userport", m.Name),
+			Namespace: m.Namespace,
+			Annotations: map[string]string{
+				"kubernetes.io/ingress.class": "nginx",
+			},
+		},
+		Spec: extv1.IngressSpec{
+			Rules: []extv1.IngressRule{
+				{
+					Host: fmt.Sprintf("%s.%s", m.Spec.Subdomain, r.Options.DomainName),
+					IngressRuleValue: extv1.IngressRuleValue{
+						HTTP: &httpValue,
+					},
+				},
+			},
+		},
+	}
+	if secret != nil {
+		ingress.Spec.TLS = []extv1.IngressTLS{
+			{
+				Hosts:      []string{fmt.Sprintf("%s.%s", m.Spec.Subdomain, r.Options.DomainName)},
+				SecretName: r.Options.HttpsSecretName,
+			},
+		}
+	}
+	// Set CodeServer instance as the owner of the ingress.
+	controllerutil.SetControllerReference(m, ingress, r.Scheme)
+	return ingress
+}
+
 // ingressForCodeServer function takes in a CodeServer object and returns a ingress for that object.
 func (r *CodeServerReconciler) ingressForCodeServer(m *csv1alpha1.CodeServer, secret *corev1.Secret) *extv1.Ingress {
 	servicePort := intstr.FromInt(HttpPort)
@@ -1080,7 +1200,7 @@ func (r *CodeServerReconciler) ingressForCodeServer(m *csv1alpha1.CodeServer, se
 	if secret != nil {
 		ingress.Spec.TLS = []extv1.IngressTLS{
 			{
-				Hosts:      []string{r.Options.DomainName},
+				Hosts:      []string{fmt.Sprintf("%s.%s", m.Spec.Subdomain, r.Options.DomainName)},
 				SecretName: r.Options.HttpsSecretName,
 			},
 		}
@@ -1100,11 +1220,9 @@ sub_filter '<head>' '<head> <base href="%s/">';`, r.getInstanceUrl(m))
 		"nginx.ingress.kubernetes.io/configuration-snippet": snippet,
 	}
 
-	// for the case of gotty we still use http for upstream connection
-	if secret != nil && m.Spec.Runtime != csv1alpha1.RuntimeGotty {
-		annotation["nginx.ingress.kubernetes.io/secure-backends"] = "true"
-		annotation["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
-	}
+	// currently, we don't enable https
+	//annotation["nginx.ingress.kubernetes.io/secure-backends"] = "true"
+	//annotation["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
 
 	return annotation
 }

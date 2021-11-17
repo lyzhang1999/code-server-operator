@@ -5,13 +5,14 @@ metadata:
 spec:
   runtime: lxd
   subdomain: codeserverzhangjianjun
-  image: "opensourceway/playground-lxc-launcher:sha-5da419e"
-  storageSize: "100Mi"
+  image: "opensourceway/playground-lxc-launcher:sha-f6b536b"
+  #image: "tommylike/lxc-launcher:0.0.3"
+  storageSize: "100Gi"
   storageName: "default"
   ingressBandwidth: "10M"
   egressBandwidth: "10M"
   inactiveAfterSeconds: 0
-  recycleAfterSeconds: 1200
+  recycleAfterSeconds: 12000
   workspaceLocation: "/workspace"
   envs:
     # env for gotty
@@ -31,7 +32,7 @@ spec:
       value: "true"
     # env for lxd launcher
     - name: LAUNCHER_ADDITIONAL_CONFIG #keep
-      value: raw.lxc=lxc.apparmor.profile=unconfined,security.nesting=true
+      value: raw.lxc=lxc.apparmor.profile=unconfined,security.nesting=true,security.privileged=true
     - name: LAUNCHER_INSTANCE_PROFILES #keep
       value: default
     - name: LAUNCHER_IMAGE_ALIAS #keep
@@ -43,4 +44,5 @@ spec:
   privileged: false
   resources:
     requests:
-      cpu: "1"
+      cpu: "2"
+      memory: "500Mi"
