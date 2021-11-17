@@ -6,7 +6,6 @@ spec:
   runtime: lxd
   subdomain: codeserverzhangjianjun
   image: "opensourceway/playground-lxc-launcher:sha-f6b536b"
-  #image: "tommylike/lxc-launcher:0.0.3"
   storageSize: "100Gi"
   storageName: "default"
   ingressBandwidth: "10M"
