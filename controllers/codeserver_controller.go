@@ -196,9 +196,15 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				condition.Reason = "waiting deployment to be available"
 			} else {
 				//add instance endpoint
-				condition.Message[InstanceEndpoint] = fmt.Sprintf("https://%s.%s/%s/ws",
-					codeServer.Spec.Subdomain,
-					r.Options.DomainName, DefaultPrefix)
+				if tlsSecret == nil {
+					condition.Message[InstanceEndpoint] = fmt.Sprintf("ws://%s.%s/%s/ws",
+						codeServer.Spec.Subdomain,
+						r.Options.DomainName, DefaultPrefix)
+				} else {
+					condition.Message[InstanceEndpoint] = fmt.Sprintf("wss://%s.%s/%s/ws",
+						codeServer.Spec.Subdomain,
+						r.Options.DomainName, DefaultPrefix)
+				}
 				//add it to watch list
 				var endPoint string
 				// only port differs, since no matter tls is enabled or nor we both expose upstream via http
