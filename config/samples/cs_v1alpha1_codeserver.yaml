@@ -6,12 +6,20 @@ spec:
   runtime: lxd
   subdomain: codeserverzhangjianjun
   image: "opensourceway/playground-lxc-launcher:sha-f6b536b"
-  storageSize: "100Gi"
+  storageSize: "10Gi"
   storageName: "default"
   ingressBandwidth: "10M"
   egressBandwidth: "10M"
   inactiveAfterSeconds: 0
   recycleAfterSeconds: 12000
+  readinessProbe:
+    httpGet:
+      path: "/active-time"
+      # connection port will be updated according to the http or https schema
+      port: 80
+    initialDelaySeconds: 6
+    periodSeconds: 3
+    timeoutSeconds: 3
   workspaceLocation: "/workspace"
   envs:
     # env for gotty
