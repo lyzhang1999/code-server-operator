@@ -51,7 +51,6 @@ const (
 	MaxKeepSeconds   = 60 * 60 * 24 * 30
 	HttpPort         = 8080
 	UserPort         = 80
-	HttpsPort        = 8443
 	IngressLimitKey  = "kubernetes.io/ingress-bandwidth"
 	EgressLimitKey   = "kubernetes.io/egress-bandwidth"
 	StorageEmptyDir  = "emptyDir"
@@ -207,14 +206,9 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				}
 				//add it to watch list
 				var endPoint string
-				// only port differs, since no matter tls is enabled or nor we both expose upstream via http
-				if tlsSecret == nil {
-					endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpPort,
-						strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
-				} else {
-					endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpsPort,
-						strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
-				}
+				// No matter tls is enabled or nor we both expose upstream via http
+				endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpPort,
+					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
 
 				if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
 					// we keep the instance within MaxActiveSeconds maximumly
@@ -715,20 +709,12 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 	//convert liveness or readiness probe
 	if m.Spec.LivenessProbe != nil {
 		if m.Spec.LivenessProbe.HTTPGet != nil {
-			if secret != nil {
-				m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpsPort)
-			} else {
-				m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
-			}
+			m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
 		}
 	}
 	if m.Spec.ReadinessProbe != nil {
 		if m.Spec.ReadinessProbe.HTTPGet != nil {
-			if secret != nil {
-				m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpsPort)
-			} else {
-				m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
-			}
+			m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
 		}
 	}
 	dep := &appsv1.Deployment{
@@ -794,46 +780,24 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 			},
 		})
 	}
-	//https will be disabled no matter secret is provided or not. we only expose different port here.
-	if secret != nil {
-		for index, con := range dep.Spec.Template.Spec.Containers {
-			if con.Name == CSNAME {
-				dep.Spec.Template.Spec.Containers[index].Env = append(
-					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
-						Name:  "GOTTY_PORT",
-						Value: strconv.Itoa(HttpsPort),
-					})
-				dep.Spec.Template.Spec.Containers[index].Ports = append(
-					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
-						ContainerPort: HttpsPort,
-						Name:          "https",
-					})
-				dep.Spec.Template.Spec.Containers[index].Ports = append(
-					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
-						ContainerPort: UserPort,
-						Name:          "user",
-					})
-			}
-		}
-	} else {
-		for index, con := range dep.Spec.Template.Spec.Containers {
-			if con.Name == CSNAME {
-				dep.Spec.Template.Spec.Containers[index].Env = append(
-					dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
-						Name:  "GOTTY_PORT",
-						Value: strconv.Itoa(HttpPort),
-					})
-				dep.Spec.Template.Spec.Containers[index].Ports = append(
-					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
-						ContainerPort: HttpPort,
-						Name:          "http",
-					})
-				dep.Spec.Template.Spec.Containers[index].Ports = append(
-					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
-						ContainerPort: UserPort,
-						Name:          "user",
-					})
-			}
+	//https will be disabled no matter secret is provided or not. we also export same port here.
+	for index, con := range dep.Spec.Template.Spec.Containers {
+		if con.Name == CSNAME {
+			dep.Spec.Template.Spec.Containers[index].Env = append(
+				dep.Spec.Template.Spec.Containers[index].Env, corev1.EnvVar{
+					Name:  "GOTTY_PORT",
+					Value: strconv.Itoa(HttpPort),
+				})
+			dep.Spec.Template.Spec.Containers[index].Ports = append(
+				dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+					ContainerPort: HttpPort,
+					Name:          "http",
+				})
+			dep.Spec.Template.Spec.Containers[index].Ports = append(
+				dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+					ContainerPort: UserPort,
+					Name:          "user",
+				})
 		}
 	}
 	// Append ingress and egress limit
@@ -952,45 +916,21 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 		Privileged: enablePriviledge,
 	}
 	reqLogger.Info("lxd container doesn't support init containers.")
-	if secret != nil {
-		ProxyPort := fmt.Sprintf("80:80,%d:%d", HttpsPort, HttpsPort)
-		additionalEnvs = append(additionalEnvs, corev1.EnvVar{
-			Name:  "GOTTY_PORT",
-			Value: strconv.Itoa(HttpsPort),
-		}, corev1.EnvVar{
-			Name:  "LAUNCHER_PROXY_PORT_PAIRS",
-			Value: ProxyPort,
-		})
-
-	} else {
-		ProxyPort := fmt.Sprintf("80:80,%d:%d", HttpPort, HttpPort)
-		additionalEnvs = append(additionalEnvs, corev1.EnvVar{
-			Name:  "GOTTY_PORT",
-			Value: strconv.Itoa(HttpPort),
-		}, corev1.EnvVar{
-			Name:  "LAUNCHER_PROXY_PORT_PAIRS",
-			Value: ProxyPort,
-		})
-	}
+	ProxyPort := fmt.Sprintf("80:80,%d:%d", HttpPort, HttpPort)
+	additionalEnvs = append(additionalEnvs, corev1.EnvVar{
+		Name:  "GOTTY_PORT",
+		Value: strconv.Itoa(HttpPort),
+	}, corev1.EnvVar{
+		Name:  "LAUNCHER_PROXY_PORT_PAIRS",
+		Value: ProxyPort,
+	})
 	envs := r.assembleBaseLxdEnvs(m, baseProxyDir, additionalEnvs)
 	//convert liveness or readiness probe
 	if m.Spec.LivenessProbe != nil {
-		if m.Spec.LivenessProbe.HTTPGet != nil {
-			if secret != nil {
-				m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpsPort)
-			} else {
-				m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
-			}
-		}
+		m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
 	}
 	if m.Spec.ReadinessProbe != nil {
-		if m.Spec.ReadinessProbe.HTTPGet != nil {
-			if secret != nil {
-				m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpsPort)
-			} else {
-				m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
-			}
-		}
+		m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
 	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1042,36 +982,19 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 		},
 	}
 	dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, secretVolume)
-	//https will be disabled no matter secret is provided or not. we only expose different port here.
-	if secret != nil {
-		for index, con := range dep.Spec.Template.Spec.Containers {
-			if con.Name == CSNAME {
-				dep.Spec.Template.Spec.Containers[index].Ports = append(
-					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
-						ContainerPort: HttpsPort,
-						Name:          "https",
-					})
-				dep.Spec.Template.Spec.Containers[index].Ports = append(
-					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
-						ContainerPort: UserPort,
-						Name:          "user",
-					})
-			}
-		}
-	} else {
-		for index, con := range dep.Spec.Template.Spec.Containers {
-			if con.Name == CSNAME {
-				dep.Spec.Template.Spec.Containers[index].Ports = append(
-					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
-						ContainerPort: HttpPort,
-						Name:          "http",
-					})
-				dep.Spec.Template.Spec.Containers[index].Ports = append(
-					dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
-						ContainerPort: UserPort,
-						Name:          "user",
-					})
-			}
+	//https will be disabled no matter secret is provided or not. we also export same port here.
+	for index, con := range dep.Spec.Template.Spec.Containers {
+		if con.Name == CSNAME {
+			dep.Spec.Template.Spec.Containers[index].Ports = append(
+				dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+					ContainerPort: HttpPort,
+					Name:          "http",
+				})
+			dep.Spec.Template.Spec.Containers[index].Ports = append(
+				dep.Spec.Template.Spec.Containers[index].Ports, corev1.ContainerPort{
+					ContainerPort: UserPort,
+					Name:          "user",
+				})
 		}
 	}
 	// Append ingress and egress limit
@@ -1099,21 +1022,12 @@ func (r *CodeServerReconciler) newService(m *csv1alpha1.CodeServer, secret *core
 			Selector: ls,
 		},
 	}
-	if secret == nil {
-		ser.Spec.Ports = append(ser.Spec.Ports, corev1.ServicePort{
-			Port:       HttpPort,
-			Name:       "http",
-			Protocol:   corev1.ProtocolTCP,
-			TargetPort: intstr.FromInt(HttpPort),
-		})
-	} else {
-		ser.Spec.Ports = append(ser.Spec.Ports, corev1.ServicePort{
-			Port:       HttpsPort,
-			Name:       "https",
-			Protocol:   corev1.ProtocolTCP,
-			TargetPort: intstr.FromInt(HttpsPort),
-		})
-	}
+	ser.Spec.Ports = append(ser.Spec.Ports, corev1.ServicePort{
+		Port:       HttpPort,
+		Name:       "http",
+		Protocol:   corev1.ProtocolTCP,
+		TargetPort: intstr.FromInt(HttpPort),
+	})
 	ser.Spec.Ports = append(ser.Spec.Ports, corev1.ServicePort{
 		Port:       UserPort,
 		Name:       "user",
@@ -1217,9 +1131,6 @@ func (r *CodeServerReconciler) newUserPortIngress(
 // NewTerminalIngress function takes in a CodeServer object and returns an ingress for that object.
 func (r *CodeServerReconciler) NewTerminalIngress(m *csv1alpha1.CodeServer, secret *corev1.Secret) *extv1.Ingress {
 	servicePort := intstr.FromInt(HttpPort)
-	if secret != nil {
-		servicePort = intstr.FromInt(HttpsPort)
-	}
 	httpValue := extv1.HTTPIngressRuleValue{
 		Paths: []extv1.HTTPIngressPath{
 			{
