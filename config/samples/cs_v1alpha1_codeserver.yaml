@@ -16,7 +16,7 @@ spec:
     httpGet:
       path: "/active-time"
       # connection port will be updated according to the http or https schema
-      port: 80
+      port: 8080
     initialDelaySeconds: 6
     periodSeconds: 3
     timeoutSeconds: 3
@@ -51,5 +51,5 @@ spec:
   privileged: false
   resources:
     requests:
-      cpu: "2"
+      cpu: "1"
       memory: "500Mi"

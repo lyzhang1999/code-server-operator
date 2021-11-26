@@ -927,10 +927,14 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 	envs := r.assembleBaseLxdEnvs(m, baseProxyDir, additionalEnvs)
 	//convert liveness or readiness probe
 	if m.Spec.LivenessProbe != nil {
-		m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
+		if m.Spec.LivenessProbe.HTTPGet != nil {
+			m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
+		}
 	}
 	if m.Spec.ReadinessProbe != nil {
-		m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
+		if m.Spec.ReadinessProbe.HTTPGet != nil {
+			m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
+		}
 	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
