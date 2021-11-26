@@ -712,7 +712,25 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 	}
 	initContainer := r.addInitContainersForDeployment(m, baseCodeDir, baseCodeVolume)
 	reqLogger.Info(fmt.Sprintf("init containers has been injected into deployment %v", initContainer))
-
+	//convert liveness or readiness probe
+	if m.Spec.LivenessProbe != nil {
+		if m.Spec.LivenessProbe.HTTPGet != nil {
+			if secret != nil {
+				m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpsPort)
+			} else {
+				m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
+			}
+		}
+	}
+	if m.Spec.ReadinessProbe != nil {
+		if m.Spec.ReadinessProbe.HTTPGet != nil {
+			if secret != nil {
+				m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpsPort)
+			} else {
+				m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
+			}
+		}
+	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      m.Name,
@@ -745,6 +763,8 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 								},
 							},
 							Resources: m.Spec.Resources,
+							LivenessProbe: m.Spec.LivenessProbe,
+							ReadinessProbe: m.Spec.ReadinessProbe,
 						},
 					},
 				},
@@ -953,7 +973,25 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 		})
 	}
 	envs := r.assembleBaseLxdEnvs(m, baseProxyDir, additionalEnvs)
-
+	//convert liveness or readiness probe
+	if m.Spec.LivenessProbe != nil {
+		if m.Spec.LivenessProbe.HTTPGet != nil {
+			if secret != nil {
+				m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpsPort)
+			} else {
+				m.Spec.LivenessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
+			}
+		}
+	}
+	if m.Spec.ReadinessProbe != nil {
+		if m.Spec.ReadinessProbe.HTTPGet != nil {
+			if secret != nil {
+				m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpsPort)
+			} else {
+				m.Spec.ReadinessProbe.HTTPGet.Port = intstr.FromInt(HttpPort)
+			}
+		}
+	}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      m.Name,
@@ -986,6 +1024,8 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 							},
 							// pass resource requests to pod, actually, the resource will be consumed by lxd.
 							Resources: m.Spec.Resources,
+							LivenessProbe: m.Spec.LivenessProbe,
+							ReadinessProbe: m.Spec.ReadinessProbe,
 						},
 					},
 				},
