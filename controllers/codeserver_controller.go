@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"net/http"
 	"path"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -80,6 +81,7 @@ type CodeServerReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=secrets,verbs=get;list;watch
 func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	reQueue := -1
 	_ = context.Background()
 	reqLogger := r.Log.WithValues("codeserver", req.NamespacedName)
 	// Fetch the CodeServer instance
@@ -191,11 +193,19 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		if failed == nil {
 			condition = NewStateCondition(csv1alpha1.ServerReady,
 				"code server now available", map[string]string{})
-			if !HasDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable) || !r.endpointReady(codeServer) {
+			if !HasDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable) || !r.serverReady(
+				codeServer, tlsSecret) {
 				condition.Status = corev1.ConditionFalse
 				condition.Reason = "waiting deployment to be available and endpoint ready"
+				//Wait a second a time until endpoint ready
+				reQueue = 1
 			} else {
-				//add instance endpoint
+				//add it to watch list
+				var endPoint string
+				// No matter tls is enabled or nor we both expose upstream via http
+				endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpPort,
+					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
+
 				if tlsSecret == nil {
 					condition.Message[InstanceEndpoint] = fmt.Sprintf("ws://%s.%s/%s/ws",
 						codeServer.Spec.Subdomain,
@@ -205,11 +215,6 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 						codeServer.Spec.Subdomain,
 						r.Options.DomainName, DefaultPrefix)
 				}
-				//add it to watch list
-				var endPoint string
-				// No matter tls is enabled or nor we both expose upstream via http
-				endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpPort,
-					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
 
 				if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
 					// we keep the instance within MaxActiveSeconds maximumly
@@ -246,10 +251,14 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		if failed != nil {
 			return reconcile.Result{
 				Requeue:      true,
-				RequeueAfter: time.Second * 30}, failed
+				RequeueAfter: time.Second * 20}, failed
 		}
 	}
+	if reQueue >= 0 {
+		return reconcile.Result{Requeue: true, RequeueAfter: time.Second * time.Duration(reQueue)}, nil
+	}
 	return reconcile.Result{Requeue: false}, nil
+
 }
 
 func (r *CodeServerReconciler) addToInactiveWatch(resource types.NamespacedName, duration int64, endpoint string) {
@@ -403,6 +412,30 @@ func (r *CodeServerReconciler) reconcileForPVC(codeServer *csv1alpha1.CodeServer
 	return oldPvc, nil
 }
 
+func (r *CodeServerReconciler) serverReady(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) bool {
+	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
+	reqLogger.Info("Waiting Service Ready.")
+	instEndpoint := ""
+	if secret == nil {
+		instEndpoint = fmt.Sprintf("http://%s.%s/%s", codeServer.Spec.Subdomain, r.Options.DomainName,
+			DefaultPrefix)
+	} else {
+		instEndpoint = fmt.Sprintf("https://%s.%s/%s", codeServer.Spec.Subdomain, r.Options.DomainName,
+			DefaultPrefix)
+	}
+	resp, err := http.Get(instEndpoint)
+	if err != nil {
+		reqLogger.Error(err, fmt.Sprintf("failed to detect instance endpoint for code server %s",
+			codeServer.Name))
+		return false
+	}
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusUnauthorized {
+		return true
+	}
+	reqLogger.Info(fmt.Sprintf("instance endpoint still unready for code server %s, status code %d",
+		codeServer.Name, resp.StatusCode))
+	return false
+}
 func (r *CodeServerReconciler) reconcileForDeployment(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*appsv1.Deployment, error) {
 	reqLogger := r.Log.WithValues("namespace", codeServer.Namespace, "name", codeServer.Name)
 	reqLogger.Info("Reconciling Deployment.")
@@ -507,24 +540,6 @@ func (r *CodeServerReconciler) reconcileForUserPortIngress(codeServer *csv1alpha
 		}
 	}
 	return oldIngress, nil
-}
-
-func (r *CodeServerReconciler) endpointReady(codeServer *csv1alpha1.CodeServer) bool {
-	endpoint := &corev1.Endpoints{}
-	err := r.Client.Get(
-		context.TODO(), types.NamespacedName{Name: codeServer.Name, Namespace: codeServer.Namespace}, endpoint)
-	if err != nil {
-		return false
-	}
-	if len(endpoint.Subsets) == 0 {
-		return false
-	}
-	for _, subsets := range endpoint.Subsets {
-		if len(subsets.Addresses) > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 func (r *CodeServerReconciler) reconcileForService(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*corev1.Service, error) {
@@ -767,8 +782,8 @@ func (r *CodeServerReconciler) deploymentForGotty(m *csv1alpha1.CodeServer, secr
 									Name:      baseCodeVolume,
 								},
 							},
-							Resources: m.Spec.Resources,
-							LivenessProbe: m.Spec.LivenessProbe,
+							Resources:      m.Spec.Resources,
+							LivenessProbe:  m.Spec.LivenessProbe,
 							ReadinessProbe: m.Spec.ReadinessProbe,
 						},
 					},
@@ -986,8 +1001,8 @@ func (r *CodeServerReconciler) deploymentForLxd(m *csv1alpha1.CodeServer, secret
 								},
 							},
 							// pass resource requests to pod, actually, the resource will be consumed by lxd.
-							Resources: m.Spec.Resources,
-							LivenessProbe: m.Spec.LivenessProbe,
+							Resources:      m.Spec.Resources,
+							LivenessProbe:  m.Spec.LivenessProbe,
 							ReadinessProbe: m.Spec.ReadinessProbe,
 						},
 					},
