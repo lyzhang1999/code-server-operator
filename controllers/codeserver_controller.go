@@ -72,6 +72,7 @@ type CodeServerReconciler struct {
 // +kubebuilder:rbac:groups=cs.opensourceways.com,resources=codeservers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cs.opensourceways.com,resources=codeservers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=,resources=endpoints,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=events,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=extensions,resources=deployments,verbs=get;list;watch;create;update;patch;delete
@@ -190,9 +191,9 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		if failed == nil {
 			condition = NewStateCondition(csv1alpha1.ServerReady,
 				"code server now available", map[string]string{})
-			if !HasDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable) {
+			if !HasDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable) || !r.endpointReady(codeServer) {
 				condition.Status = corev1.ConditionFalse
-				condition.Reason = "waiting deployment to be available"
+				condition.Reason = "waiting deployment to be available and endpoint ready"
 			} else {
 				//add instance endpoint
 				if tlsSecret == nil {
@@ -506,6 +507,24 @@ func (r *CodeServerReconciler) reconcileForUserPortIngress(codeServer *csv1alpha
 		}
 	}
 	return oldIngress, nil
+}
+
+func (r *CodeServerReconciler) endpointReady(codeServer *csv1alpha1.CodeServer) bool {
+	endpoint := &corev1.Endpoints{}
+	err := r.Client.Get(
+		context.TODO(), types.NamespacedName{Name: codeServer.Name, Namespace: codeServer.Namespace}, endpoint)
+	if err != nil {
+		return false
+	}
+	if len(endpoint.Subsets) == 0 {
+		return false
+	}
+	for _, subsets := range endpoint.Subsets {
+		if len(subsets.Addresses) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *CodeServerReconciler) reconcileForService(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*corev1.Service, error) {

@@ -30,6 +30,7 @@ rules:
     - ""
   resources:
     - services
+    - endpoints
     - events
     - persistentvolumeclaims
   verbs:

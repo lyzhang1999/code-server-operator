@@ -1,55 +1,49 @@
 apiVersion: cs.opensourceways.com/v1alpha1
 kind: CodeServer
 metadata:
-  name: codeserver-lxd-sample
+  name: resources-1-container-x86-1
+  namespace: default
 spec:
-  runtime: lxd
-  subdomain: codeserverzhangjianjun
-  image: "opensourceway/playground-lxc-launcher:sha-f6b536b"
-  storageSize: "10Gi"
-  storageName: "default"
-  ingressBandwidth: "10M"
-  egressBandwidth: "10M"
-  inactiveAfterSeconds: 0
-  recycleAfterSeconds: 12000
-  readinessProbe:
-    httpGet:
-      path: "/active-time"
-      # connection port will be updated according to the http or https schema
-      port: 8080
-    initialDelaySeconds: 6
-    periodSeconds: 3
-    timeoutSeconds: 3
-  workspaceLocation: "/workspace"
+  args:
+    - zsh
+  connectProbe: /active-time
+  egressBandwidth: 1M
   envs:
-    # env for gotty
     - name: GOTTY_ONLY_ENABLE_BACKEND_WS_SERVER
       value: "false"
     - name: GOTTY_CREDENTIAL
-      value: name:password
-    - name: COMMUNITY_USER
-      value: zhangjianjun
+      value: 428d6bde63f0cf9e:61773a4bd99b249af3953bbddf0e7b1a
+    - name: SHELL_USER
+      value: zhangjianjun_code
     - name: GOTTY_MAX_CONNECTION
       value: "10"
     - name: COMMUNITY_EMAIL
       value: contact@openeuler.io
     - name: GOTTY_WS_ORIGIN
-      value: ".*"
+      value: .*
     - name: GOTTY_PERMIT_WRITE
       value: "true"
-    # env for lxd launcher
-    - name: LAUNCHER_ADDITIONAL_CONFIG #keep
-      value: raw.lxc=lxc.apparmor.profile=unconfined,security.nesting=true,security.privileged=true
-    - name: LAUNCHER_INSTANCE_PROFILES #keep
-      value: default
-    - name: LAUNCHER_IMAGE_ALIAS #keep
-      value: openeuler-gotty
-    # env for terminal
-    - name: TERM
-      value: xterm
-  connectProbe: "/active-time"
+  image: opensourceway/openeuler-20.03-lts-sp1-base:latest@sha256:4e94a5b8e3636df00eebb042e43c1941dc46c9395cce54f96e414bee0eab3c57
+  inactiveAfterSeconds: 0
+  ingressBandwidth: 10M
   privileged: false
+  readinessProbe:
+    httpGet:
+      path: /active-time
+      port: 80
+    initialDelaySeconds: 6
+    periodSeconds: 3
+    timeoutSeconds: 3
+  recycleAfterSeconds: 12000
   resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
     requests:
-      cpu: "1"
-      memory: "500Mi"
+      cpu: 500m
+      memory: 500Mi
+  runtime: gotty
+  storageName: emptyDir
+  storageSize: 500Mi
+  subdomain: resfc6cb5c95f229a26554ff06a5884c
+  workspaceLocation: /workspace
