@@ -417,11 +417,11 @@ func (r *CodeServerReconciler) serverReady(codeServer *csv1alpha1.CodeServer, se
 	reqLogger.Info("Waiting Service Ready.")
 	instEndpoint := ""
 	if secret == nil {
-		instEndpoint = fmt.Sprintf("http://%s.%s/%s", codeServer.Spec.Subdomain, r.Options.DomainName,
-			DefaultPrefix)
+		instEndpoint = fmt.Sprintf("http://%s.%s/%s/%s", codeServer.Spec.Subdomain, r.Options.DomainName,
+			DefaultPrefix, strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
 	} else {
-		instEndpoint = fmt.Sprintf("https://%s.%s/%s", codeServer.Spec.Subdomain, r.Options.DomainName,
-			DefaultPrefix)
+		instEndpoint = fmt.Sprintf("https://%s.%s/%s/%s", codeServer.Spec.Subdomain, r.Options.DomainName,
+			DefaultPrefix, strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
 	}
 	resp, err := http.Get(instEndpoint)
 	if err != nil {
