@@ -86,6 +86,7 @@ func main() {
 	flag.StringVar(&csOption.LxdClientSecretName, "lxd-client-secret-name", "lxd-client-secret", "Secret which holds the key and secret for lxc client to communicate to server.")
 	flag.StringVar(&csOption.UrlPrefix, "url-prefix", "terminal", "Url prefix added before instance url.")
 	flag.BoolVar(&csOption.EnableUserIngress, "enable-user-ingress", false, "enable user ingress for visiting.")
+	flag.IntVar(&csOption.MaxConcurrency, "max-concurrency", 2, "Max concurrency of reconcile worker.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
@@ -109,7 +110,7 @@ func main() {
 		Scheme:  mgr.GetScheme(),
 		Options: &csOption,
 		ReqCh:   csRequest,
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, csOption.MaxConcurrency); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CodeServer")
 		os.Exit(1)
 	}
