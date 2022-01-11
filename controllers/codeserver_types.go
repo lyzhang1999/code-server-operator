@@ -31,6 +31,7 @@ type CodeServerOption struct {
 	LxdClientSecretName string
 	UrlPrefix           string
 	EnableUserIngress   bool
+	MaxConcurrency      int
 }
 
 type WatchType string

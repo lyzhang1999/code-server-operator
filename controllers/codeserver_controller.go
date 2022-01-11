@@ -37,6 +37,7 @@ import (
 	"path"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"strconv"
@@ -131,15 +132,21 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		current := metav1.Time{
 			Time: time.Now(),
 		}
+		boundStatus := GetCondition(codeServer.Status, csv1alpha1.ServerBound)
 		if (codeServer.Spec.RecycleAfterSeconds == nil) || *codeServer.Spec.RecycleAfterSeconds <= 0 || *codeServer.Spec.RecycleAfterSeconds >= MaxKeepSeconds {
-			// we keep the instance within MaxKeepSeconds maximumly
-			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d seconds.",
-				MaxKeepSeconds))
-			r.addToRecycleWatch(req.NamespacedName, MaxKeepSeconds, current)
+			// status nil for old code server which doesn't have a bound condition
+			if boundStatus != nil && boundStatus.Status == corev1.ConditionTrue {
+				// we keep the instance within MaxKeepSeconds maximumly
+				reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d seconds.",
+					MaxKeepSeconds))
+				r.addToRecycleWatch(req.NamespacedName, MaxKeepSeconds, current)
+			}
 		} else {
-			reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d seconds.",
-				*codeServer.Spec.RecycleAfterSeconds))
-			r.addToRecycleWatch(req.NamespacedName, *codeServer.Spec.RecycleAfterSeconds, current)
+			if boundStatus != nil && boundStatus.Status == corev1.ConditionTrue {
+				reqLogger.Info(fmt.Sprintf("Code server will be recycled after %d seconds.",
+					*codeServer.Spec.RecycleAfterSeconds))
+				r.addToRecycleWatch(req.NamespacedName, *codeServer.Spec.RecycleAfterSeconds, current)
+			}
 		}
 	} else if HasCondition(codeServer.Status, csv1alpha1.ServerRecycled) {
 		//remove it from watch list
@@ -187,12 +194,12 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		// 5/5: update code server status
 		if !HasCondition(codeServer.Status, csv1alpha1.ServerCreated) {
 			createdCondition := NewStateCondition(csv1alpha1.ServerCreated,
-				"code server has been accepted", map[string]string{})
+				"code server has been accepted", map[string]string{}, corev1.ConditionTrue)
 			SetCondition(&codeServer.Status, createdCondition)
 		}
 		if failed == nil {
 			condition = NewStateCondition(csv1alpha1.ServerReady,
-				"code server now available", map[string]string{})
+				"code server now available", map[string]string{}, corev1.ConditionTrue)
 			if !HasDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable) || !r.serverReady(
 				codeServer, tlsSecret) {
 				condition.Status = corev1.ConditionFalse
@@ -216,26 +223,38 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 						r.Options.DomainName, DefaultPrefix)
 				}
 
+				boundStatus := GetCondition(codeServer.Status, csv1alpha1.ServerBound)
 				if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
 					// we keep the instance within MaxActiveSeconds maximumly
-					r.addToInactiveWatch(req.NamespacedName, MaxActiveSeconds, endPoint)
-					reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
-						MaxActiveSeconds))
+					if boundStatus != nil && boundStatus.Status == corev1.ConditionTrue {
+						r.addToInactiveWatch(req.NamespacedName, MaxActiveSeconds, endPoint)
+						reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
+							MaxActiveSeconds))
+					}
 				} else if *codeServer.Spec.InactiveAfterSeconds == 0 {
 					// we will not watch this code server instance if inactive is set 0
 					reqLogger.Info("Code server will never be disactived")
 				} else {
-					r.addToInactiveWatch(req.NamespacedName, *codeServer.Spec.InactiveAfterSeconds, endPoint)
-					reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
-						*codeServer.Spec.InactiveAfterSeconds))
+					if boundStatus != nil && boundStatus.Status == corev1.ConditionTrue {
+						r.addToInactiveWatch(req.NamespacedName, *codeServer.Spec.InactiveAfterSeconds, endPoint)
+						reqLogger.Info(fmt.Sprintf("Code server will be disactived after %d non-connection.",
+							*codeServer.Spec.InactiveAfterSeconds))
+					}
 				}
 
 			}
 		} else {
 			condition = NewStateCondition(csv1alpha1.ServerErrored,
-				"code server errored", map[string]string{"detail": failed.Error()})
+				"code server errored", map[string]string{"detail": failed.Error()}, corev1.ConditionTrue)
 		}
 		SetCondition(&codeServer.Status, condition)
+		//if it's ready and missing server bound status, add default condition here.
+		if HasCondition(codeServer.Status, csv1alpha1.ServerReady) && MissingCondition(
+			codeServer.Status, csv1alpha1.ServerBound) {
+			additionCondition := NewStateCondition(csv1alpha1.ServerBound,
+				"code server waiting to be bound", map[string]string{}, corev1.ConditionFalse)
+			SetCondition(&codeServer.Status, additionCondition)
+		}
 		updateStatus := codeServer.Status
 		err = r.Client.Get(context.TODO(), req.NamespacedName, codeServer)
 		if err != nil {
@@ -1234,10 +1253,11 @@ func appLabel(name string) map[string]string {
 }
 
 // NewStateCondition creates a new code server condition.
-func NewStateCondition(conditionType csv1alpha1.ServerConditionType, reason string, message map[string]string) csv1alpha1.ServerCondition {
+func NewStateCondition(conditionType csv1alpha1.ServerConditionType, reason string, message map[string]string,
+	status corev1.ConditionStatus) csv1alpha1.ServerCondition {
 	return csv1alpha1.ServerCondition{
 		Type:               conditionType,
-		Status:             corev1.ConditionTrue,
+		Status:             status,
 		LastUpdateTime:     metav1.Now(),
 		LastTransitionTime: metav1.Now(),
 		Reason:             reason,
@@ -1245,7 +1265,7 @@ func NewStateCondition(conditionType csv1alpha1.ServerConditionType, reason stri
 	}
 }
 
-// HasCondition checks whether the job has the specified condition
+// HasCondition checks whether the instance has the specified condition
 func HasCondition(status csv1alpha1.CodeServerStatus, condType csv1alpha1.ServerConditionType) bool {
 	for _, condition := range status.Conditions {
 		if condition.Type == condType && condition.Status == corev1.ConditionTrue {
@@ -1253,6 +1273,16 @@ func HasCondition(status csv1alpha1.CodeServerStatus, condType csv1alpha1.Server
 		}
 	}
 	return false
+}
+
+// MissingCondition checks whether the instance miss the specified condition
+func MissingCondition(status csv1alpha1.CodeServerStatus, condType csv1alpha1.ServerConditionType) bool {
+	for _, condition := range status.Conditions {
+		if condition.Type == condType {
+			return false
+		}
+	}
+	return true
 }
 
 func HasDeploymentCondition(status appsv1.DeploymentStatus, condType appsv1.DeploymentConditionType) bool {
@@ -1344,10 +1374,13 @@ func needUpdateDeployment(old, new *appsv1.Deployment) bool {
 		!equality.Semantic.DeepEqual(old.Spec.Template.Spec.Containers, new.Spec.Template.Spec.Containers)
 }
 
-func (r *CodeServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *CodeServerReconciler) SetupWithManager(mgr ctrl.Manager, maxConcurrency int) error {
+	options := controller.Options{
+		MaxConcurrentReconciles: maxConcurrency,
+	}
 	//watch codeserver, server, ingress, pvc and deployment.
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&csv1alpha1.CodeServer{}).Owns(&corev1.Service{}).
-		Owns(&extv1.Ingress{}).Owns(&appsv1.Deployment{}).Owns(&corev1.PersistentVolumeClaim{}).
+		Owns(&extv1.Ingress{}).Owns(&appsv1.Deployment{}).Owns(&corev1.PersistentVolumeClaim{}).WithOptions(options).
 		Complete(r)
 }

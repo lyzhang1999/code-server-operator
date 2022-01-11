@@ -91,6 +91,8 @@ const (
 	ServerCreated ServerConditionType = "ServerCreated"
 	// ServerReady means the code server has been ready for usage.
 	ServerReady ServerConditionType = "ServerReady"
+	// ServerBound means the code server has been bound to user.
+	ServerBound ServerConditionType = "ServerBound"
 	// ServerRecycled means the code server has been recycled totally.
 	ServerRecycled ServerConditionType = "ServerRecycled"
 	// ServerInactive means the code server will be marked inactive if `InactiveAfterSeconds` elapsed
