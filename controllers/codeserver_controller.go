@@ -177,7 +177,7 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			_, failed = r.reconcileForTerminalIngress(codeServer, tlsSecret)
 		}
 
-		if failed == nil {
+		if r.Options.EnableUserIngress && failed == nil {
 			_, failed = r.reconcileForUserPortIngress(codeServer, tlsSecret)
 		}
 		// 4/5: reconcile deployment

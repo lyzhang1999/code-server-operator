@@ -85,6 +85,7 @@ func main() {
 	flag.StringVar(&csOption.HttpsSecretName, "secret-name", "code-server-secret", "Secret which holds the https cert(tls.crt) and key file(tls.key). This secret will be used in ingress controller as well as code server instance.")
 	flag.StringVar(&csOption.LxdClientSecretName, "lxd-client-secret-name", "lxd-client-secret", "Secret which holds the key and secret for lxc client to communicate to server.")
 	flag.StringVar(&csOption.UrlPrefix, "url-prefix", "terminal", "Url prefix added before instance url.")
+	flag.BoolVar(&csOption.EnableUserIngress, "enable-user-ingress", false, "enable user ingress for visiting.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
