@@ -30,6 +30,7 @@ type CodeServerOption struct {
 	HttpsSecretName     string
 	LxdClientSecretName string
 	UrlPrefix           string
+	EnableUserIngress   bool
 }
 
 type WatchType string
