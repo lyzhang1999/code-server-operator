@@ -86,7 +86,7 @@ func main() {
 	flag.StringVar(&csOption.LxdClientSecretName, "lxd-client-secret-name", "lxd-client-secret", "Secret which holds the key and secret for lxc client to communicate to server.")
 	flag.StringVar(&csOption.UrlPrefix, "url-prefix", "terminal", "Url prefix added before instance url.")
 	flag.BoolVar(&csOption.EnableUserIngress, "enable-user-ingress", false, "enable user ingress for visiting.")
-	flag.IntVar(&csOption.MaxConcurrency, "max-concurrency", 2, "Max concurrency of reconcile worker.")
+	flag.IntVar(&csOption.MaxConcurrency, "max-concurrency", 10, "Max concurrency of reconcile worker.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {

@@ -33,7 +33,7 @@ const (
 	// RuntimeLxd stands for system container.
 	RuntimeLxd RuntimeType = "lxd"
 	// RuntimeVM stands for virtual machine.
-	RuntimeVM RuntimeType = "wm"
+	RuntimeVM RuntimeType = "vm"
 	// RuntimeCode stands for VS code.
 	RuntimeCode RuntimeType = "code"
 )
