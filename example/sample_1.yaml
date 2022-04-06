@@ -1,20 +1,20 @@
 apiVersion: cs.opensourceways.com/v1alpha1
 kind: CodeServer
 metadata:
-  name: codeserver-tommy
+  name: codeserver-husheng
 spec:
-  url: codeservertommy
-  image: "codercom/code-server:v2"
-  volumeSize: "200m"
-  storageClassName: "local-nfs"
+  runtime: code
+  subdomain: codeservertommy
+  image: "codercom/code-server:4.4.0"
+  storageSize: "1Gi"
+  storageName: "emptyDir"
   inactiveAfterSeconds: 600
   recycleAfterSeconds: 1200
+  envs:
+    - name: PASSWORD
+      value: "12345678"
   resources:
     requests:
       cpu: "2"
       memory: "2048m"
-  serverCipher: "1234"
-  initPlugins:
-    git:
-      - --repourl
-      - https://github.com/TommyLike/tommylike.me.git
+  connectProbe: "/login"
