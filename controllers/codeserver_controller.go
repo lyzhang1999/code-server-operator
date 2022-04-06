@@ -1243,6 +1243,8 @@ sub_filter '<head>' '<head> <base href="%s/">';`, r.getInstanceUrl(m))
 	//annotation["nginx.ingress.kubernetes.io/secure-backends"] = "true"
 	//annotation["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
 
+	annotation["nginx.ingress.kubernetes.io/proxy-read-timeout"] = "1800"
+	annotation["nginx.ingress.kubernetes.io/proxy-send-timeout"] = "1800"
 	return annotation
 }
 
