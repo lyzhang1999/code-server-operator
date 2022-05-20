@@ -7,11 +7,12 @@ let listen_port = process.env.LISTEN_PORT;
 
 console.log(`state file at: ${stat_file}`)
 
-app.get('/mtime', (req, res) => {
+app.get('/active-time', (req, res) => {
     if (!fs.existsSync(stat_file)) {
         console.log(`${stat_file} not exists.`)
         res.status(204).send()
     } else {
+        res.setHeader('content-type', 'text/plain');
         res.status(200).send(fs.statSync(stat_file).mtime);
     }
 });

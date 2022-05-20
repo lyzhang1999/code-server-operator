@@ -647,15 +647,16 @@ func (r *CodeServerReconciler) deploymentForVSCodeServer(m *csv1alpha1.CodeServe
 		Privileged: enablePriviledge,
 	}
 
-	dataVolume := corev1.PersistentVolumeClaimVolumeSource{
-		ClaimName: m.Name,
+	//share volume used for status watch
+	shareQuantity, _ := resourcev1.ParseQuantity("500M")
+	shareVolume := corev1.EmptyDirVolumeSource{
+		Medium:    "",
+		SizeLimit: &shareQuantity,
 	}
-	arguments := []string{"--base-path", r.getInstanceUrl(m)}
-	if secret == nil {
-		arguments = append(arguments, []string{"--port", "8080"}...)
-	} else {
-		arguments = append(arguments, []string{"--port", "8443"}...)
-	}
+	var arguments []string
+	arguments = append(arguments, []string{"--port", strconv.Itoa(HttpPort)}...)
+	arguments = append(arguments, []string{"--verbose"}...)
+	arguments = append(arguments, baseCodeDir)
 
 	initContainer := r.addInitContainersForDeployment(m, baseCodeDir, baseCodeVolume)
 	reqLogger.Info(fmt.Sprintf("init containers has been injected into deployment %v", initContainer))
@@ -684,6 +685,7 @@ func (r *CodeServerReconciler) deploymentForVSCodeServer(m *csv1alpha1.CodeServe
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Args:            arguments,
 							SecurityContext: &priviledged,
+							Env:             m.Spec.Envs,
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									MountPath: "/home/coder/.local/share/code-server",
@@ -699,12 +701,37 @@ func (r *CodeServerReconciler) deploymentForVSCodeServer(m *csv1alpha1.CodeServe
 								Name:          "serverhttpport",
 							}},
 						},
+						{
+							Image:           r.Options.VSExporterImage,
+							Name:            "status-exporter",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									MountPath: "/home/coder/.local/share/code-server",
+									Name:      "code-server-share-dir",
+								},
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "STAT_FILE",
+									Value: "/home/coder/.local/share/code-server/heartbeat",
+								},
+								{
+									Name:  "LISTEN_PORT",
+									Value: "8000",
+								},
+							},
+							Ports: []corev1.ContainerPort{{
+								ContainerPort: 8000,
+								Name:          "statusreporter",
+							}},
+						},
 					},
 					Volumes: []corev1.Volume{
 						{
-							Name: baseCodeVolume,
+							Name: "code-server-share-dir",
 							VolumeSource: corev1.VolumeSource{
-								PersistentVolumeClaim: &dataVolume,
+								EmptyDir: &shareVolume,
 							},
 						},
 					},
@@ -713,33 +740,28 @@ func (r *CodeServerReconciler) deploymentForVSCodeServer(m *csv1alpha1.CodeServe
 		},
 	}
 
-	if secret != nil {
-		reqLogger.Info(fmt.Sprintf("Found tls secret %s, will enable https for code server", secret.Name))
-		secretSource := corev1.SecretVolumeSource{
-			SecretName: r.Options.HttpsSecretName,
+	// add volume pvc pr emptyDir
+	if r.needDeployPVC(m.Spec.StorageName) {
+		dataVolume := corev1.PersistentVolumeClaimVolumeSource{
+			ClaimName: m.Name,
 		}
-		secretVolume := corev1.Volume{
-			Name: "code-server-secret-vol",
+		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: baseCodeVolume,
 			VolumeSource: corev1.VolumeSource{
-				Secret: &secretSource,
+				PersistentVolumeClaim: &dataVolume,
 			},
+		})
+	} else {
+		volumeQuantity, _ := resourcev1.ParseQuantity(m.Spec.StorageSize)
+		dataVolume := corev1.EmptyDirVolumeSource{
+			SizeLimit: &volumeQuantity,
 		}
-		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, secretVolume)
-		for index, con := range dep.Spec.Template.Spec.Containers {
-			if con.Name == CSNAME {
-				secretsArgument := []string{"--cert", fmt.Sprintf("/etc/config/csserver/%s", corev1.TLSCertKey),
-					"--cert-key", fmt.Sprintf("/etc/config/csserver/%s", corev1.TLSPrivateKeyKey)}
-				dep.Spec.Template.Spec.Containers[index].Args = append(dep.Spec.Template.Spec.Containers[index].Args, secretsArgument...)
-				newVolumeMounts := []corev1.VolumeMount{
-					{
-						MountPath: "/etc/config/csserver",
-						Name:      "code-server-secret-vol",
-					},
-				}
-				dep.Spec.Template.Spec.Containers[index].VolumeMounts = append(
-					dep.Spec.Template.Spec.Containers[index].VolumeMounts, newVolumeMounts...)
-			}
-		}
+		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: baseCodeVolume,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &dataVolume,
+			},
+		})
 	}
 	// Set CodeServer instance as the owner of the Deployment.
 	controllerutil.SetControllerReference(m, dep, r.Scheme)
