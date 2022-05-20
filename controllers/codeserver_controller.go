@@ -212,16 +212,7 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				// No matter tls is enabled or nor we both expose upstream via http
 				endPoint = fmt.Sprintf("http://%s:%d/%s", service.Spec.ClusterIP, HttpPort,
 					strings.TrimLeft(codeServer.Spec.ConnectProbe, "/"))
-
-				if tlsSecret == nil {
-					condition.Message[InstanceEndpoint] = fmt.Sprintf("ws://%s.%s/%s/ws",
-						codeServer.Spec.Subdomain,
-						r.Options.DomainName, DefaultPrefix)
-				} else {
-					condition.Message[InstanceEndpoint] = fmt.Sprintf("wss://%s.%s/%s/ws",
-						codeServer.Spec.Subdomain,
-						r.Options.DomainName, DefaultPrefix)
-				}
+				condition.Message[InstanceEndpoint] = r.getInstanceEndpoint(codeServer, tlsSecret)
 
 				boundStatus := GetCondition(codeServer.Status, csv1alpha1.ServerBound)
 				if (codeServer.Spec.InactiveAfterSeconds == nil) || *codeServer.Spec.InactiveAfterSeconds < 0 || *codeServer.Spec.InactiveAfterSeconds >= MaxActiveSeconds {
@@ -620,18 +611,37 @@ func (r *CodeServerReconciler) addInitContainersForDeployment(m *csv1alpha1.Code
 }
 
 func (r *CodeServerReconciler) newDeployment(m *csv1alpha1.CodeServer, secret *corev1.Secret) (*appsv1.Deployment, error) {
-	runtime := string(m.Spec.Runtime)
-	if strings.EqualFold(runtime, string(csv1alpha1.RuntimeCode)) {
+	instanceRuntime := string(m.Spec.Runtime)
+	if strings.EqualFold(instanceRuntime, string(csv1alpha1.RuntimeCode)) {
 		//Create code server environment with vs code
 		return r.deploymentForVSCodeServer(m, secret), nil
-	} else if strings.EqualFold(runtime, string(csv1alpha1.RuntimeGotty)) {
+	} else if strings.EqualFold(instanceRuntime, string(csv1alpha1.RuntimeGotty)) {
 		//Create code server environment with gotty based terminal
 		return r.deploymentForGotty(m, secret), nil
-	} else if strings.EqualFold(runtime, string(csv1alpha1.RuntimeLxd)) {
+	} else if strings.EqualFold(instanceRuntime, string(csv1alpha1.RuntimeLxd)) {
 		//Create code server environment with gotty based terminal which runs on lxd
 		return r.deploymentForLxd(m, secret), nil
 	} else {
 		return nil, errrorlib.New(fmt.Sprintf("unsupported runtime %s", m.Spec.Runtime))
+	}
+}
+
+func (r *CodeServerReconciler) getInstanceEndpoint(m *csv1alpha1.CodeServer, tlsSecret *corev1.Secret) string {
+	instanceRuntime := string(m.Spec.Runtime)
+	// https not configured
+	if tlsSecret == nil {
+		//websocket
+		if strings.EqualFold(instanceRuntime, string(csv1alpha1.RuntimeGotty)) || strings.EqualFold(instanceRuntime, string(csv1alpha1.RuntimeLxd)) {
+			return fmt.Sprintf("ws://%s.%s/%s/ws", m.Spec.Subdomain, r.Options.DomainName, DefaultPrefix)
+		} else {
+			return fmt.Sprintf("http://%s.%s/%s", m.Spec.Subdomain, r.Options.DomainName, DefaultPrefix)
+		}
+	} else {
+		if strings.EqualFold(instanceRuntime, string(csv1alpha1.RuntimeGotty)) || strings.EqualFold(instanceRuntime, string(csv1alpha1.RuntimeLxd)) {
+			return fmt.Sprintf("wss://%s.%s/%s/ws", m.Spec.Subdomain, r.Options.DomainName, DefaultPrefix)
+		} else {
+			return fmt.Sprintf("https://%s.%s/%s", m.Spec.Subdomain, r.Options.DomainName, DefaultPrefix)
+		}
 	}
 }
 
