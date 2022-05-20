@@ -656,6 +656,7 @@ func (r *CodeServerReconciler) deploymentForVSCodeServer(m *csv1alpha1.CodeServe
 	var arguments []string
 	arguments = append(arguments, []string{"--port", strconv.Itoa(HttpPort)}...)
 	arguments = append(arguments, []string{"--verbose"}...)
+	arguments = append(arguments, baseCodeDir)
 
 	initContainer := r.addInitContainersForDeployment(m, baseCodeDir, baseCodeVolume)
 	reqLogger.Info(fmt.Sprintf("init containers has been injected into deployment %v", initContainer))
