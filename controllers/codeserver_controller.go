@@ -443,8 +443,8 @@ func (r *CodeServerReconciler) serverReady(codeServer *csv1alpha1.CodeServer, se
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusUnauthorized {
 		return true
 	}
-	reqLogger.Info(fmt.Sprintf("instance endpoint still unready for code server %s, status code %d",
-		codeServer.Name, resp.StatusCode))
+	reqLogger.Info(fmt.Sprintf("instance endpoint still unready for code server %s, status code %d, endpoint is %s",
+		codeServer.Name, resp.StatusCode, instEndpoint))
 	return false
 }
 func (r *CodeServerReconciler) reconcileForDeployment(codeServer *csv1alpha1.CodeServer, secret *corev1.Secret) (*appsv1.Deployment, error) {
