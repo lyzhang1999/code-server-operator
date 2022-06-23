@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"github.com/opensourceways/code-server-operator/controllers/initplugins/git"
 	"github.com/opensourceways/code-server-operator/controllers/initplugins/interface"
+	obs_clone "github.com/opensourceways/code-server-operator/controllers/initplugins/obs-clone"
 	"sync"
 )
 
 func init() {
 	RegisterPlugins(git.GetName(), git.Create)
+	RegisterPlugins(obs_clone.GetName(), obs_clone.Create)
 }
 
 var pluginMutex sync.Mutex

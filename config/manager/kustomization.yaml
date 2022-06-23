@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: opensourceway/codeserver-controller
-  newTag: 6f20b2aa66081f6463e6e80283f2bd7532218034
+  newTag: 1c64c1a74f20f5f127678ed30960288ccae36652

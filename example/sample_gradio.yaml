@@ -2,7 +2,7 @@ apiVersion: cs.opensourceways.com/v1alpha1
 kind: CodeServer
 metadata:
   name: codeserver-gradio-sample
-  namespace: opengauss-tryme
+  namespace: default
 spec:
   runtime: generic
   subdomain: codeservergradio
@@ -14,7 +14,7 @@ spec:
   resources:
     requests:
       cpu: "0.5"
-      memory: "512m"
+      memory: "512Mi"
   connectProbe: "/"
   workspaceLocation: "/workspace"
   envs:
@@ -30,8 +30,9 @@ spec:
       pip install -r requirements.txt
       exec python3 launch.py
   initPlugins:
-    git:
-      - --repourl
-      - https://github.com/gradio-app/hosted-hello-world.git
-      - --repofolder
-      - content
+    obs-clone:
+      - --source=xihe-obj/models/wesley/lenet_mnist/
+      - --obs-ak=<ak>
+      - --obs-sk=<sk>
+      - --obs-bucketname=obs-xihe-beijing4-test
+      - --obs-endpoint=obs.cn-north-4.myhuaweicloud.com

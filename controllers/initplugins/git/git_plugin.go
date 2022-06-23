@@ -6,6 +6,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/opensourceways/code-server-operator/controllers/initplugins/interface"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
@@ -49,6 +50,16 @@ func (p *GitPlugin) GenerateInitContainerSpec() *corev1.Container {
 		Name:            "init-git-clone",
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         command,
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("0.5"),
+				corev1.ResourceMemory: resource.MustParse("512Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("0.5"),
+				corev1.ResourceMemory: resource.MustParse("512Mi"),
+			},
+		},
 	}
 	return &container
 }
