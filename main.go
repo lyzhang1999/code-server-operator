@@ -124,11 +124,11 @@ func main() {
 		&csOption,
 		csRequest,
 		probeTicker.C)
-	stopCh := ctrl.SetupSignalHandler()
-	go codeServerWatcher.Run(stopCh)
+	stopContext := ctrl.SetupSignalHandler()
+	go codeServerWatcher.Run(stopContext.Done())
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(stopCh); err != nil {
+	if err := mgr.Start(stopContext); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

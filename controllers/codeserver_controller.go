@@ -80,7 +80,7 @@ type CodeServerReconciler struct {
 // +kubebuilder:rbac:groups=extensions,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=secrets,verbs=get;list;watch
-func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *CodeServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	reQueueInterval := -1
 	_ = context.Background()
 	reqLogger := r.Log.WithValues("codeserver", req.NamespacedName)

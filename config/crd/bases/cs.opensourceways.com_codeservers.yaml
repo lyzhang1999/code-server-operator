@@ -69,12 +69,14 @@ spec:
                       type: string
                     value:
                       description: 'Variable references $(VAR_NAME) are expanded using
-                        the previous defined environment variables in the container
+                        the previously defined environment variables in the container
                         and any service environment variables. If a variable cannot
                         be resolved, the reference in the input string will be unchanged.
-                        The $(VAR_NAME) syntax can be escaped with a double $$, ie:
-                        $$(VAR_NAME). Escaped references will never be expanded, regardless
-                        of whether the variable exists or not. Defaults to "".'
+                        Double $$ are reduced to a single $, which allows for escaping
+                        the $(VAR_NAME) syntax: i.e. "$$(VAR_NAME)" will produce the
+                        string literal "$(VAR_NAME)". Escaped references will never
+                        be expanded, regardless of whether the variable exists or
+                        not. Defaults to "".'
                       type: string
                     valueFrom:
                       description: Source for the environment variable's value. Cannot
@@ -99,9 +101,9 @@ spec:
                           type: object
                         fieldRef:
                           description: 'Selects a field of the pod: supports metadata.name,
-                            metadata.namespace, metadata.labels, metadata.annotations,
+                            metadata.namespace, `metadata.labels[''<KEY>'']`, `metadata.annotations[''<KEY>'']`,
                             spec.nodeName, spec.serviceAccountName, status.hostIP,
-                            status.podIP.'
+                            status.podIP, status.podIPs.'
                           properties:
                             apiVersion:
                               description: Version of the schema the FieldPath is
@@ -180,8 +182,7 @@ spec:
                 description: Specifies the liveness Probe.
                 properties:
                   exec:
-                    description: One and only one of the following should be specified.
-                      Exec specifies the action to take.
+                    description: Exec specifies the action to take.
                     properties:
                       command:
                         description: Command is the command line to execute inside
@@ -201,6 +202,25 @@ spec:
                       value is 1.
                     format: int32
                     type: integer
+                  grpc:
+                    description: GRPC specifies an action involving a GRPC port. This
+                      is a beta field and requires enabling GRPCContainerProbe feature
+                      gate.
+                    properties:
+                      port:
+                        description: Port number of the gRPC service. Number must
+                          be in the range 1 to 65535.
+                        format: int32
+                        type: integer
+                      service:
+                        description: "Service is the name of the service to place
+                          in the gRPC HealthCheckRequest (see https://github.com/grpc/grpc/blob/master/doc/health-checking.md).
+                          \n If this is not specified, the default behavior is defined
+                          by gRPC."
+                        type: string
+                    required:
+                    - port
+                    type: object
                   httpGet:
                     description: HTTPGet specifies the http request to perform.
                     properties:
@@ -261,9 +281,7 @@ spec:
                     format: int32
                     type: integer
                   tcpSocket:
-                    description: 'TCPSocket specifies an action involving a TCP port.
-                      TCP hooks not yet supported TODO: implement a realistic TCP
-                      lifecycle hook'
+                    description: TCPSocket specifies an action involving a TCP port.
                     properties:
                       host:
                         description: 'Optional: Host name to connect to, defaults
@@ -280,6 +298,22 @@ spec:
                     required:
                     - port
                     type: object
+                  terminationGracePeriodSeconds:
+                    description: Optional duration in seconds the pod needs to terminate
+                      gracefully upon probe failure. The grace period is the duration
+                      in seconds after the processes running in the pod are sent a
+                      termination signal and the time when the processes are forcibly
+                      halted with a kill signal. Set this value longer than the expected
+                      cleanup time for your process. If this value is nil, the pod's
+                      terminationGracePeriodSeconds will be used. Otherwise, this
+                      value overrides the value provided by the pod spec. Value must
+                      be non-negative integer. The value zero indicates stop immediately
+                      via the kill signal (no opportunity to shut down). This is a
+                      beta field and requires enabling ProbeTerminationGracePeriod
+                      feature gate. Minimum value is 1. spec.terminationGracePeriodSeconds
+                      is used if unset.
+                    format: int64
+                    type: integer
                   timeoutSeconds:
                     description: 'Number of seconds after which the probe times out.
                       Defaults to 1 second. Minimum value is 1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
@@ -298,8 +332,7 @@ spec:
                 description: Specifies the readiness Probe.
                 properties:
                   exec:
-                    description: One and only one of the following should be specified.
-                      Exec specifies the action to take.
+                    description: Exec specifies the action to take.
                     properties:
                       command:
                         description: Command is the command line to execute inside
@@ -319,6 +352,25 @@ spec:
                       value is 1.
                     format: int32
                     type: integer
+                  grpc:
+                    description: GRPC specifies an action involving a GRPC port. This
+                      is a beta field and requires enabling GRPCContainerProbe feature
+                      gate.
+                    properties:
+                      port:
+                        description: Port number of the gRPC service. Number must
+                          be in the range 1 to 65535.
+                        format: int32
+                        type: integer
+                      service:
+                        description: "Service is the name of the service to place
+                          in the gRPC HealthCheckRequest (see https://github.com/grpc/grpc/blob/master/doc/health-checking.md).
+                          \n If this is not specified, the default behavior is defined
+                          by gRPC."
+                        type: string
+                    required:
+                    - port
+                    type: object
                   httpGet:
                     description: HTTPGet specifies the http request to perform.
                     properties:
@@ -379,9 +431,7 @@ spec:
                     format: int32
                     type: integer
                   tcpSocket:
-                    description: 'TCPSocket specifies an action involving a TCP port.
-                      TCP hooks not yet supported TODO: implement a realistic TCP
-                      lifecycle hook'
+                    description: TCPSocket specifies an action involving a TCP port.
                     properties:
                       host:
                         description: 'Optional: Host name to connect to, defaults
@@ -398,6 +448,22 @@ spec:
                     required:
                     - port
                     type: object
+                  terminationGracePeriodSeconds:
+                    description: Optional duration in seconds the pod needs to terminate
+                      gracefully upon probe failure. The grace period is the duration
+                      in seconds after the processes running in the pod are sent a
+                      termination signal and the time when the processes are forcibly
+                      halted with a kill signal. Set this value longer than the expected
+                      cleanup time for your process. If this value is nil, the pod's
+                      terminationGracePeriodSeconds will be used. Otherwise, this
+                      value overrides the value provided by the pod spec. Value must
+                      be non-negative integer. The value zero indicates stop immediately
+                      via the kill signal (no opportunity to shut down). This is a
+                      beta field and requires enabling ProbeTerminationGracePeriod
+                      feature gate. Minimum value is 1. spec.terminationGracePeriodSeconds
+                      is used if unset.
+                    format: int64
+                    type: integer
                   timeoutSeconds:
                     description: 'Number of seconds after which the probe times out.
                       Defaults to 1 second. Minimum value is 1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes'
@@ -416,7 +482,7 @@ spec:
                     additionalProperties:
                       type: string
                     description: 'Limits describes the maximum amount of compute resources
-                      allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                      allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                     type: object
                   requests:
                     additionalProperties:
@@ -424,7 +490,7 @@ spec:
                     description: 'Requests describes the minimum amount of compute
                       resources required. If Requests is omitted for a container,
                       it defaults to Limits if that is explicitly specified, otherwise
-                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                     type: object
                 type: object
               runtime:
