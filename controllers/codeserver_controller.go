@@ -81,7 +81,7 @@ type CodeServerReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=secrets,verbs=get;list;watch
 func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	reQueue := -1
+	reQueueInterval := -1
 	_ = context.Background()
 	reqLogger := r.Log.WithValues("codeserver", req.NamespacedName)
 	// Fetch the CodeServer instance
@@ -199,8 +199,11 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				codeServer, tlsSecret) {
 				condition.Status = corev1.ConditionFalse
 				condition.Reason = "waiting deployment to be available and endpoint ready"
-				//Wait a second a time until endpoint ready
-				reQueue = 1
+				//only when deployment is ready while server unready, try to watch it later
+				if HasDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable) {
+					reqLogger.Info("Code server will be requeue due to endpoint unready")
+					reQueueInterval = 5
+				}
 			} else {
 				//add it to watch list
 				var endPoint string
@@ -259,8 +262,8 @@ func (r *CodeServerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				RequeueAfter: time.Second * 20}, failed
 		}
 	}
-	if reQueue >= 0 {
-		return reconcile.Result{Requeue: true, RequeueAfter: time.Second * time.Duration(reQueue)}, nil
+	if reQueueInterval >= 0 {
+		return reconcile.Result{Requeue: true, RequeueAfter: time.Second * time.Duration(reQueueInterval)}, nil
 	}
 	return reconcile.Result{Requeue: false}, nil
 
